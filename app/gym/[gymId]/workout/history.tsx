@@ -41,7 +41,7 @@ export default function HistoryScreen() {
     <View style={styles.container}>
       {workouts.length === 0 ? (
         <View style={styles.empty}>
-          <Ionicons name="calendar-outline" size={64} color={Colors.textLight} />
+          <Ionicons name="calendar-outline" size={48} color={Colors.textLight} />
           <Text style={styles.emptyText}>No completed workouts yet</Text>
         </View>
       ) : (
@@ -55,6 +55,7 @@ export default function HistoryScreen() {
               onPress={() =>
                 router.navigate(`/gym/${gymId}/workout/summary/${item.id}`)
               }
+              activeOpacity={0.7}
             >
               <View style={styles.cardHeader}>
                 <Text style={styles.cardTitle}>{item.name}</Text>
@@ -62,15 +63,15 @@ export default function HistoryScreen() {
               </View>
               <View style={styles.cardStats}>
                 <View style={styles.stat}>
-                  <Ionicons name="time-outline" size={16} color={Colors.primary} />
+                  <Ionicons name="time-outline" size={14} color={Colors.primary} />
                   <Text style={styles.statText}>{formatDuration(item.duration_seconds)}</Text>
                 </View>
                 <View style={styles.stat}>
-                  <Ionicons name="barbell-outline" size={16} color={Colors.primary} />
+                  <Ionicons name="barbell-outline" size={14} color={Colors.primary} />
                   <Text style={styles.statText}>{item.exercise_count} exercises</Text>
                 </View>
                 <View style={styles.stat}>
-                  <Ionicons name="layers-outline" size={16} color={Colors.primary} />
+                  <Ionicons name="layers-outline" size={14} color={Colors.primary} />
                   <Text style={styles.statText}>{item.total_sets} sets</Text>
                 </View>
               </View>
@@ -84,13 +85,14 @@ export default function HistoryScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  list: { padding: 16 },
+  list: { padding: 20 },
   card: {
     backgroundColor: Colors.surface,
-    borderRadius: 12,
+    borderRadius: 14,
     padding: 16,
-    marginBottom: 12,
-    elevation: 1,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -98,7 +100,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 10,
   },
-  cardTitle: { fontSize: 17, fontWeight: '700', color: Colors.text },
+  cardTitle: { fontSize: 16, fontWeight: '700', color: Colors.text },
   cardDate: { fontSize: 12, color: Colors.textSecondary },
   cardStats: { flexDirection: 'row', gap: 16 },
   stat: { flexDirection: 'row', alignItems: 'center', gap: 4 },

@@ -88,16 +88,18 @@ export default function GymScreen() {
         <TouchableOpacity
           style={styles.actionBtn}
           onPress={() => router.navigate(`/gym/${id}/workout/new`)}
+          activeOpacity={0.8}
         >
-          <Ionicons name="add-circle" size={22} color="#fff" />
+          <Ionicons name="add-circle" size={20} color={Colors.background} />
           <Text style={styles.actionBtnText}>New Workout</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.actionBtn, { backgroundColor: Colors.primaryDark }]}
+          style={styles.actionBtnSecondary}
           onPress={() => router.navigate(`/gym/${id}/workout/history`)}
+          activeOpacity={0.8}
         >
-          <Ionicons name="time" size={22} color="#fff" />
-          <Text style={styles.actionBtnText}>History</Text>
+          <Ionicons name="time" size={20} color={Colors.primary} />
+          <Text style={styles.actionBtnSecondaryText}>History</Text>
         </TouchableOpacity>
       </View>
 
@@ -125,13 +127,14 @@ export default function GymScreen() {
                 style={styles.card}
                 onPress={() => handleStartFromTemplate(item)}
                 onLongPress={() => handleDeleteTemplate(item)}
+                activeOpacity={0.7}
               >
-                <Ionicons name="document-text" size={24} color={Colors.primary} />
+                <Ionicons name="document-text" size={22} color={Colors.primary} />
                 <View style={styles.cardContent}>
                   <Text style={styles.cardTitle}>{item.name}</Text>
-                  <Text style={styles.cardSubtitle}>Tap to start this workout</Text>
+                  <Text style={styles.cardSubtitle}>Tap to start</Text>
                 </View>
-                <Ionicons name="play-circle" size={28} color={Colors.success} />
+                <Ionicons name="play-circle" size={26} color={Colors.success} />
               </TouchableOpacity>
             )}
           />
@@ -145,6 +148,7 @@ export default function GymScreen() {
             <TextInput
               style={styles.input}
               placeholder="Workout name (e.g. Push Day)"
+              placeholderTextColor={Colors.textLight}
               value={templateName}
               onChangeText={setTemplateName}
               autoFocus
@@ -168,7 +172,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   actions: {
     flexDirection: 'row',
-    padding: 16,
+    padding: 20,
     gap: 12,
   },
   actionBtn: {
@@ -179,27 +183,40 @@ const styles = StyleSheet.create({
     gap: 8,
     backgroundColor: Colors.primary,
     paddingVertical: 14,
-    borderRadius: 12,
-    elevation: 2,
+    borderRadius: 14,
   },
-  actionBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  section: { flex: 1, padding: 16, paddingTop: 0 },
+  actionBtnText: { color: Colors.background, fontSize: 15, fontWeight: '700' },
+  actionBtnSecondary: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: Colors.surface,
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  actionBtnSecondaryText: { color: Colors.primary, fontSize: 15, fontWeight: '700' },
+  section: { flex: 1, paddingHorizontal: 20 },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 14,
   },
   sectionTitle: { fontSize: 18, fontWeight: '700', color: Colors.text },
   card: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.surface,
-    borderRadius: 12,
+    borderRadius: 14,
     padding: 16,
     marginBottom: 10,
-    gap: 12,
-    elevation: 1,
+    gap: 14,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   cardContent: { flex: 1 },
   cardTitle: { fontSize: 16, fontWeight: '600', color: Colors.text },
@@ -209,35 +226,39 @@ const styles = StyleSheet.create({
   emptySubtext: { fontSize: 13, color: Colors.textLight, marginTop: 4, textAlign: 'center' },
   formOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.7)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
   },
   form: {
     backgroundColor: Colors.surface,
-    borderRadius: 16,
+    borderRadius: 20,
     padding: 24,
     width: '100%',
     maxWidth: 400,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   formTitle: { fontSize: 20, fontWeight: '700', marginBottom: 16, color: Colors.text },
   input: {
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 8,
-    padding: 12,
+    borderRadius: 12,
+    padding: 14,
     fontSize: 16,
     marginBottom: 12,
+    backgroundColor: Colors.background,
+    color: Colors.text,
   },
   formButtons: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12, marginTop: 8 },
-  cancelBtn: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8 },
+  cancelBtn: { paddingHorizontal: 20, paddingVertical: 12, borderRadius: 10 },
   cancelBtnText: { color: Colors.textSecondary, fontSize: 16 },
   saveBtn: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 10,
     backgroundColor: Colors.primary,
   },
-  saveBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  saveBtnText: { color: Colors.background, fontSize: 16, fontWeight: '700' },
 });

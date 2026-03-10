@@ -53,7 +53,9 @@ export default function WorkoutSummaryScreen() {
 
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.header}>
-          <Ionicons name="trophy" size={48} color={Colors.warning} />
+          <View style={styles.trophyWrap}>
+            <Ionicons name="trophy" size={40} color={Colors.warning} />
+          </View>
           <Text style={styles.title}>{workout.name}</Text>
           <Text style={styles.date}>
             {new Date(workout.started_at + 'Z').toLocaleDateString('en-US', {
@@ -66,24 +68,24 @@ export default function WorkoutSummaryScreen() {
 
         <View style={styles.statsRow}>
           <View style={styles.statCard}>
-            <Ionicons name="time-outline" size={24} color={Colors.primary} />
+            <Ionicons name="time-outline" size={22} color={Colors.primary} />
             <Text style={styles.statValue}>{formatDuration(workout.duration_seconds)}</Text>
             <Text style={styles.statLabel}>Duration</Text>
           </View>
           <View style={styles.statCard}>
-            <Ionicons name="barbell-outline" size={24} color={Colors.primary} />
+            <Ionicons name="barbell-outline" size={22} color={Colors.primary} />
             <Text style={styles.statValue}>{exercises.length}</Text>
             <Text style={styles.statLabel}>Exercises</Text>
           </View>
           <View style={styles.statCard}>
-            <Ionicons name="layers-outline" size={24} color={Colors.primary} />
+            <Ionicons name="layers-outline" size={22} color={Colors.primary} />
             <Text style={styles.statValue}>{totalSets}</Text>
             <Text style={styles.statLabel}>Sets</Text>
           </View>
           <View style={styles.statCard}>
-            <Ionicons name="fitness-outline" size={24} color={Colors.primary} />
+            <Ionicons name="fitness-outline" size={22} color={Colors.primary} />
             <Text style={styles.statValue}>{Math.round(totalVolume)}</Text>
-            <Text style={styles.statLabel}>Volume (kg)</Text>
+            <Text style={styles.statLabel}>Volume</Text>
           </View>
         </View>
 
@@ -105,6 +107,7 @@ export default function WorkoutSummaryScreen() {
       <TouchableOpacity
         style={styles.doneBtn}
         onPress={() => router.replace(`/gym/${gymId}`)}
+        activeOpacity={0.8}
       >
         <Text style={styles.doneBtnText}>Back to Gym</Text>
       </TouchableOpacity>
@@ -114,33 +117,43 @@ export default function WorkoutSummaryScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  content: { padding: 16, paddingBottom: 100 },
+  content: { padding: 20, paddingBottom: 100 },
   header: { alignItems: 'center', paddingVertical: 24 },
-  title: { fontSize: 24, fontWeight: '800', color: Colors.text, marginTop: 12 },
+  trophyWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: Colors.warning + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  title: { fontSize: 24, fontWeight: '800', color: Colors.text, marginTop: 14 },
   date: { fontSize: 14, color: Colors.textSecondary, marginTop: 4 },
   statsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 10,
-    marginBottom: 20,
+    marginBottom: 24,
   },
   statCard: {
     flex: 1,
     minWidth: '40%',
     backgroundColor: Colors.surface,
-    borderRadius: 12,
+    borderRadius: 14,
     padding: 16,
     alignItems: 'center',
-    elevation: 1,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   statValue: { fontSize: 22, fontWeight: '800', color: Colors.text, marginTop: 4 },
-  statLabel: { fontSize: 12, color: Colors.textSecondary, marginTop: 2 },
+  statLabel: { fontSize: 11, color: Colors.textSecondary, marginTop: 2, textTransform: 'uppercase', letterSpacing: 1 },
   exerciseCard: {
     backgroundColor: Colors.surface,
-    borderRadius: 12,
+    borderRadius: 14,
     padding: 16,
     marginBottom: 10,
-    elevation: 1,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   exerciseName: { fontSize: 16, fontWeight: '700', color: Colors.text, marginBottom: 6 },
   note: { fontSize: 13, color: Colors.textSecondary, marginBottom: 6, fontStyle: 'italic' },
@@ -155,5 +168,5 @@ const styles = StyleSheet.create({
     paddingBottom: 34,
     alignItems: 'center',
   },
-  doneBtnText: { color: '#fff', fontSize: 18, fontWeight: '700' },
+  doneBtnText: { color: Colors.background, fontSize: 18, fontWeight: '700' },
 });

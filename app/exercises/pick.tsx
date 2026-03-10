@@ -57,10 +57,11 @@ export default function PickExerciseScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.searchBar}>
-        <Ionicons name="search" size={20} color={Colors.textLight} />
+        <Ionicons name="search" size={18} color={Colors.textLight} />
         <TextInput
           style={styles.searchInput}
           placeholder="Search exercises..."
+          placeholderTextColor={Colors.textLight}
           value={search}
           onChangeText={setSearch}
           autoFocus
@@ -79,8 +80,8 @@ export default function PickExerciseScreen() {
           </View>
         }
         renderItem={({ item }) => (
-          <TouchableOpacity style={styles.card} onPress={() => handlePick(item.id)}>
-            <Ionicons name="add-circle" size={24} color={Colors.success} />
+          <TouchableOpacity style={styles.card} onPress={() => handlePick(item.id)} activeOpacity={0.7}>
+            <Ionicons name="add-circle" size={22} color={Colors.success} />
             <View style={styles.cardContent}>
               <Text style={styles.cardTitle}>{item.name}</Text>
               {item.details ? (
@@ -96,6 +97,7 @@ export default function PickExerciseScreen() {
           <TextInput
             style={styles.createInput}
             placeholder="New exercise name"
+            placeholderTextColor={Colors.textLight}
             value={newName}
             onChangeText={setNewName}
             autoFocus
@@ -123,25 +125,26 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.surface,
-    margin: 16,
+    margin: 20,
     marginBottom: 8,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    gap: 8,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    gap: 10,
     borderWidth: 1,
     borderColor: Colors.border,
   },
-  searchInput: { flex: 1, paddingVertical: 10, fontSize: 16 },
-  list: { padding: 16, paddingTop: 8 },
+  searchInput: { flex: 1, paddingVertical: 12, fontSize: 16, color: Colors.text },
+  list: { paddingHorizontal: 20, paddingTop: 8 },
   card: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.surface,
-    borderRadius: 10,
+    borderRadius: 14,
     padding: 14,
     marginBottom: 8,
     gap: 12,
-    elevation: 1,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   cardContent: { flex: 1 },
   cardTitle: { fontSize: 16, fontWeight: '600', color: Colors.text },
@@ -151,35 +154,37 @@ const styles = StyleSheet.create({
   createBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 12,
-    paddingBottom: 28,
+    padding: 14,
+    paddingBottom: 30,
     backgroundColor: Colors.surface,
     borderTopWidth: 1,
     borderTopColor: Colors.border,
-    gap: 8,
+    gap: 10,
   },
   createInput: {
     flex: 1,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 8,
-    padding: 10,
+    borderRadius: 10,
+    padding: 12,
     fontSize: 16,
+    backgroundColor: Colors.background,
+    color: Colors.text,
   },
   createBtn: {
     backgroundColor: Colors.primary,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderRadius: 10,
   },
-  createBtnText: { color: '#fff', fontWeight: '600' },
+  createBtnText: { color: Colors.background, fontWeight: '700' },
   createToggle: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    padding: 14,
-    paddingBottom: 28,
+    padding: 16,
+    paddingBottom: 30,
     backgroundColor: Colors.surface,
     borderTopWidth: 1,
     borderTopColor: Colors.border,

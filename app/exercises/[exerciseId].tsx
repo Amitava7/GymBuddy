@@ -44,13 +44,13 @@ export default function ExerciseDetailScreen() {
           <TouchableOpacity
             onPress={() => router.push({ pathname: '/exercises/form', params: { exerciseId: id.toString() } })}
           >
-            <Ionicons name="create-outline" size={24} color={Colors.primary} />
+            <Ionicons name="create-outline" size={22} color={Colors.primary} />
           </TouchableOpacity>
         </View>
 
         {exercise.details ? (
           <View style={styles.detailsCard}>
-            <Text style={styles.detailsLabel}>Details</Text>
+            <Text style={styles.detailsLabel}>DETAILS</Text>
             <Text style={styles.detailsText}>{exercise.details}</Text>
           </View>
         ) : null}
@@ -61,21 +61,21 @@ export default function ExerciseDetailScreen() {
             <View style={styles.recordsRow}>
               {records.max_kg != null && (
                 <View style={styles.recordCard}>
-                  <Ionicons name="trophy" size={22} color={Colors.warning} />
+                  <Ionicons name="trophy" size={20} color={Colors.warning} />
                   <Text style={styles.recordValue}>{records.max_kg} kg</Text>
                   <Text style={styles.recordLabel}>Max Weight</Text>
                 </View>
               )}
               {records.max_reps != null && (
                 <View style={styles.recordCard}>
-                  <Ionicons name="trophy" size={22} color={Colors.warning} />
+                  <Ionicons name="trophy" size={20} color={Colors.warning} />
                   <Text style={styles.recordValue}>{records.max_reps}</Text>
                   <Text style={styles.recordLabel}>Max Reps</Text>
                 </View>
               )}
               {records.max_volume != null && (
                 <View style={styles.recordCard}>
-                  <Ionicons name="trophy" size={22} color={Colors.warning} />
+                  <Ionicons name="trophy" size={20} color={Colors.warning} />
                   <Text style={styles.recordValue}>{Math.round(records.max_volume)}</Text>
                   <Text style={styles.recordLabel}>Max Volume</Text>
                 </View>
@@ -91,7 +91,7 @@ export default function ExerciseDetailScreen() {
           ) : (
             <>
               <View style={styles.chart}>
-                <Text style={styles.chartTitle}>Volume per Session</Text>
+                <Text style={styles.chartTitle}>VOLUME PER SESSION</Text>
                 <View style={styles.bars}>
                   {history.slice(0, 10).reverse().map((h, i) => {
                     const maxVol = Math.max(...history.slice(0, 10).map((x) => x.total_volume || 1));
@@ -130,7 +130,7 @@ export default function ExerciseDetailScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  content: { padding: 16 },
+  content: { padding: 20 },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -140,12 +140,13 @@ const styles = StyleSheet.create({
   title: { fontSize: 24, fontWeight: '800', color: Colors.text },
   detailsCard: {
     backgroundColor: Colors.surface,
-    borderRadius: 12,
+    borderRadius: 14,
     padding: 16,
     marginBottom: 20,
-    elevation: 1,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
-  detailsLabel: { fontSize: 13, fontWeight: '700', color: Colors.textSecondary, marginBottom: 6 },
+  detailsLabel: { fontSize: 11, fontWeight: '700', color: Colors.textSecondary, marginBottom: 6, letterSpacing: 1 },
   detailsText: { fontSize: 15, color: Colors.text, lineHeight: 22 },
   recordsSection: { marginBottom: 20 },
   sectionTitle: { fontSize: 18, fontWeight: '700', color: Colors.text, marginBottom: 12 },
@@ -153,10 +154,11 @@ const styles = StyleSheet.create({
   recordCard: {
     flex: 1,
     backgroundColor: Colors.surface,
-    borderRadius: 12,
+    borderRadius: 14,
     padding: 14,
     alignItems: 'center',
-    elevation: 1,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   recordValue: { fontSize: 20, fontWeight: '800', color: Colors.text, marginTop: 4 },
   recordLabel: { fontSize: 11, color: Colors.textSecondary, marginTop: 2 },
@@ -164,16 +166,17 @@ const styles = StyleSheet.create({
   noHistory: { fontSize: 14, color: Colors.textSecondary, textAlign: 'center', marginTop: 20 },
   chart: {
     backgroundColor: Colors.surface,
-    borderRadius: 12,
+    borderRadius: 14,
     padding: 16,
     marginBottom: 16,
-    elevation: 1,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
-  chartTitle: { fontSize: 14, fontWeight: '600', color: Colors.textSecondary, marginBottom: 12 },
+  chartTitle: { fontSize: 11, fontWeight: '700', color: Colors.textSecondary, marginBottom: 12, letterSpacing: 1 },
   bars: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-around', height: 110 },
   barContainer: { alignItems: 'center', flex: 1 },
   bar: {
-    width: 20,
+    width: 18,
     backgroundColor: Colors.primary,
     borderRadius: 4,
     minHeight: 4,
@@ -181,10 +184,11 @@ const styles = StyleSheet.create({
   barLabel: { fontSize: 8, color: Colors.textLight, marginTop: 4, textAlign: 'center' },
   historyCard: {
     backgroundColor: Colors.surface,
-    borderRadius: 10,
+    borderRadius: 12,
     padding: 14,
     marginBottom: 8,
-    elevation: 1,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   historyHeader: {
     flexDirection: 'row',

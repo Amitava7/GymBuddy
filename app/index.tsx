@@ -12,6 +12,7 @@ import {
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../src/constants/colors';
+import { Logo } from '../src/components/Logo';
 import { getGyms, createGym, deleteGym } from '../src/db/database';
 
 type Gym = { id: number; name: string; location: string | null };
@@ -59,22 +60,27 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
+      <View style={styles.safeTop} />
+
+      <View style={styles.hero}>
+        <Logo size="large" />
+        <Text style={styles.tagline}>Track. Lift. Repeat.</Text>
+      </View>
+
       <View style={styles.header}>
-        <Text style={styles.subtitle}>Select your gym to get started</Text>
-        <View style={styles.headerButtons}>
-          <TouchableOpacity
-            style={styles.headerBtn}
-            onPress={() => router.navigate('/exercises')}
-          >
-            <Ionicons name="barbell-outline" size={20} color={Colors.primary} />
-            <Text style={styles.headerBtnText}>Exercises</Text>
-          </TouchableOpacity>
-        </View>
+        <Text style={styles.sectionTitle}>Your Gyms</Text>
+        <TouchableOpacity
+          style={styles.headerBtn}
+          onPress={() => router.navigate('/exercises')}
+        >
+          <Ionicons name="barbell-outline" size={18} color={Colors.primary} />
+          <Text style={styles.headerBtnText}>Exercises</Text>
+        </TouchableOpacity>
       </View>
 
       {gyms.length === 0 && !showForm && (
         <View style={styles.empty}>
-          <Ionicons name="fitness-outline" size={64} color={Colors.textLight} />
+          <Ionicons name="fitness-outline" size={48} color={Colors.textLight} />
           <Text style={styles.emptyText}>No gyms yet</Text>
           <Text style={styles.emptySubtext}>Add your first gym to get started</Text>
         </View>
@@ -89,9 +95,10 @@ export default function HomeScreen() {
             style={styles.card}
             onPress={() => router.navigate(`/gym/${item.id}`)}
             onLongPress={() => handleDelete(item)}
+            activeOpacity={0.7}
           >
             <View style={styles.cardIcon}>
-              <Ionicons name="business" size={28} color={Colors.primary} />
+              <Ionicons name="business" size={24} color={Colors.primary} />
             </View>
             <View style={styles.cardContent}>
               <Text style={styles.cardTitle}>{item.name}</Text>
@@ -99,7 +106,7 @@ export default function HomeScreen() {
                 <Text style={styles.cardSubtitle}>{item.location}</Text>
               ) : null}
             </View>
-            <Ionicons name="chevron-forward" size={24} color={Colors.textLight} />
+            <Ionicons name="chevron-forward" size={20} color={Colors.textLight} />
           </TouchableOpacity>
         )}
       />
@@ -111,6 +118,7 @@ export default function HomeScreen() {
             <TextInput
               style={styles.input}
               placeholder="Gym name"
+              placeholderTextColor={Colors.textLight}
               value={name}
               onChangeText={setName}
               autoFocus
@@ -118,6 +126,7 @@ export default function HomeScreen() {
             <TextInput
               style={styles.input}
               placeholder="Location (optional)"
+              placeholderTextColor={Colors.textLight}
               value={location}
               onChangeText={setLocation}
             />
@@ -133,8 +142,8 @@ export default function HomeScreen() {
         </View>
       )}
 
-      <TouchableOpacity style={styles.fab} onPress={() => setShowForm(true)}>
-        <Ionicons name="add" size={28} color="#fff" />
+      <TouchableOpacity style={styles.fab} onPress={() => setShowForm(true)} activeOpacity={0.8}>
+        <Ionicons name="add" size={28} color={Colors.background} />
       </TouchableOpacity>
     </View>
   );
@@ -142,103 +151,120 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
+  safeTop: { height: 50 },
+  hero: {
+    alignItems: 'center',
+    paddingVertical: 28,
+    paddingBottom: 20,
+  },
+  tagline: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    letterSpacing: 3,
+    marginTop: 10,
+    textTransform: 'uppercase',
+  },
   header: {
-    padding: 16,
+    paddingHorizontal: 20,
     paddingBottom: 8,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  subtitle: { fontSize: 15, color: Colors.textSecondary },
-  headerButtons: { flexDirection: 'row', gap: 8 },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.text,
+  },
   headerBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
     backgroundColor: Colors.surface,
     borderWidth: 1,
     borderColor: Colors.border,
   },
   headerBtnText: { fontSize: 13, color: Colors.primary, fontWeight: '600' },
-  list: { padding: 16, paddingTop: 8 },
+  list: { paddingHorizontal: 20, paddingTop: 8 },
   card: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.surface,
-    borderRadius: 12,
+    borderRadius: 14,
     padding: 16,
-    marginBottom: 12,
-    elevation: 2,
-    shadowColor: Colors.cardShadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   cardIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 44,
+    height: 44,
+    borderRadius: 12,
     backgroundColor: Colors.primary + '15',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 14,
   },
   cardContent: { flex: 1 },
-  cardTitle: { fontSize: 17, fontWeight: '600', color: Colors.text },
+  cardTitle: { fontSize: 16, fontWeight: '600', color: Colors.text },
   cardSubtitle: { fontSize: 13, color: Colors.textSecondary, marginTop: 2 },
-  empty: { alignItems: 'center', marginTop: 80 },
-  emptyText: { fontSize: 18, fontWeight: '600', color: Colors.textSecondary, marginTop: 16 },
-  emptySubtext: { fontSize: 14, color: Colors.textLight, marginTop: 4 },
+  empty: { alignItems: 'center', marginTop: 60 },
+  emptyText: { fontSize: 16, fontWeight: '600', color: Colors.textSecondary, marginTop: 14 },
+  emptySubtext: { fontSize: 13, color: Colors.textLight, marginTop: 4 },
   fab: {
     position: 'absolute',
-    bottom: 24,
+    bottom: 28,
     right: 24,
     width: 56,
     height: 56,
-    borderRadius: 28,
-    backgroundColor: Colors.accent,
+    borderRadius: 16,
+    backgroundColor: Colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
   },
   formOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.7)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
   },
   form: {
     backgroundColor: Colors.surface,
-    borderRadius: 16,
+    borderRadius: 20,
     padding: 24,
     width: '100%',
     maxWidth: 400,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   formTitle: { fontSize: 20, fontWeight: '700', marginBottom: 16, color: Colors.text },
   input: {
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 8,
-    padding: 12,
+    borderRadius: 12,
+    padding: 14,
     fontSize: 16,
     marginBottom: 12,
+    backgroundColor: Colors.background,
+    color: Colors.text,
   },
   formButtons: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12, marginTop: 8 },
-  cancelBtn: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8 },
+  cancelBtn: { paddingHorizontal: 20, paddingVertical: 12, borderRadius: 10 },
   cancelBtnText: { color: Colors.textSecondary, fontSize: 16 },
   saveBtn: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 10,
     backgroundColor: Colors.primary,
   },
-  saveBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  saveBtnText: { color: Colors.background, fontSize: 16, fontWeight: '700' },
 });

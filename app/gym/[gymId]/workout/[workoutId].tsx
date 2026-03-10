@@ -7,7 +7,6 @@ import {
   TextInput,
   StyleSheet,
   Alert,
-  Pressable,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, useFocusEffect, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -185,7 +184,7 @@ export default function ActiveWorkoutScreen() {
       <Stack.Screen options={{ title: workoutName, headerBackVisible: false }} />
 
       <View style={styles.timer}>
-        <Ionicons name="time-outline" size={20} color={Colors.primary} />
+        <Ionicons name="time-outline" size={18} color={Colors.primary} />
         <Text style={styles.timerText}>{formatTime(elapsed)}</Text>
       </View>
 
@@ -202,7 +201,7 @@ export default function ActiveWorkoutScreen() {
               >
                 <Ionicons
                   name={ex.is_completed ? 'checkmark-circle' : 'ellipse-outline'}
-                  size={28}
+                  size={26}
                   color={ex.is_completed ? Colors.success : Colors.textLight}
                 />
               </TouchableOpacity>
@@ -214,6 +213,7 @@ export default function ActiveWorkoutScreen() {
             <TextInput
               style={styles.noteInput}
               placeholder="Add note..."
+              placeholderTextColor={Colors.textLight}
               value={ex.note || ''}
               onChangeText={(text) => handleUpdateNote(ex.id, text)}
               multiline
@@ -232,6 +232,7 @@ export default function ActiveWorkoutScreen() {
                 <TextInput
                   style={styles.setInput}
                   placeholder="0"
+                  placeholderTextColor={Colors.textLight}
                   value={set.kg != null ? String(set.kg) : ''}
                   onChangeText={(v) => handleUpdateSet(set.id, 'kg', v)}
                   keyboardType="numeric"
@@ -239,31 +240,32 @@ export default function ActiveWorkoutScreen() {
                 <TextInput
                   style={styles.setInput}
                   placeholder="0"
+                  placeholderTextColor={Colors.textLight}
                   value={set.reps != null ? String(set.reps) : ''}
                   onChangeText={(v) => handleUpdateSet(set.id, 'reps', v)}
                   keyboardType="numeric"
                 />
                 <TouchableOpacity onPress={() => handleDeleteSet(set.id)}>
-                  <Ionicons name="close-circle-outline" size={22} color={Colors.danger} />
+                  <Ionicons name="close-circle-outline" size={20} color={Colors.danger} />
                 </TouchableOpacity>
               </View>
             ))}
 
             <TouchableOpacity style={styles.addSetBtn} onPress={() => handleAddSet(ex.id)}>
-              <Ionicons name="add" size={18} color={Colors.primary} />
+              <Ionicons name="add" size={16} color={Colors.primary} />
               <Text style={styles.addSetText}>Add Set</Text>
             </TouchableOpacity>
           </View>
         ))}
 
-        <TouchableOpacity style={styles.addExerciseBtn} onPress={handleAddExercise}>
-          <Ionicons name="add-circle-outline" size={22} color={Colors.primary} />
+        <TouchableOpacity style={styles.addExerciseBtn} onPress={handleAddExercise} activeOpacity={0.7}>
+          <Ionicons name="add-circle-outline" size={20} color={Colors.primary} />
           <Text style={styles.addExerciseText}>Add Exercise</Text>
         </TouchableOpacity>
       </ScrollView>
 
-      <TouchableOpacity style={styles.finishBtn} onPress={handleFinish}>
-        <Ionicons name="checkmark-done" size={22} color="#fff" />
+      <TouchableOpacity style={styles.finishBtn} onPress={handleFinish} activeOpacity={0.8}>
+        <Ionicons name="checkmark-done" size={20} color={Colors.background} />
         <Text style={styles.finishBtnText}>Finish Workout</Text>
       </TouchableOpacity>
     </View>
@@ -277,22 +279,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    paddingVertical: 10,
+    paddingVertical: 12,
     backgroundColor: Colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
   },
   timerText: { fontSize: 20, fontWeight: '700', color: Colors.primary, fontVariant: ['tabular-nums'] },
   scroll: { flex: 1 },
-  scrollContent: { padding: 16, paddingBottom: 100 },
+  scrollContent: { padding: 20, paddingBottom: 100 },
   exerciseCard: {
     backgroundColor: Colors.surface,
-    borderRadius: 12,
+    borderRadius: 14,
     padding: 16,
     marginBottom: 12,
-    elevation: 1,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
-  exerciseCompleted: { borderLeftWidth: 4, borderLeftColor: Colors.success },
+  exerciseCompleted: { borderLeftWidth: 3, borderLeftColor: Colors.success },
   exerciseHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
   checkBtn: {},
   exerciseName: { fontSize: 17, fontWeight: '700', color: Colors.text, flex: 1 },
@@ -300,12 +303,13 @@ const styles = StyleSheet.create({
   noteInput: {
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 8,
-    padding: 8,
+    borderRadius: 10,
+    padding: 10,
     fontSize: 14,
-    color: Colors.textSecondary,
+    color: Colors.text,
     marginBottom: 12,
     minHeight: 36,
+    backgroundColor: Colors.background,
   },
   setsHeader: {
     flexDirection: 'row',
@@ -319,6 +323,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: Colors.textLight,
     textAlign: 'center',
+    letterSpacing: 1,
   },
   setRow: {
     flexDirection: 'row',
@@ -338,10 +343,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
     borderRadius: 8,
-    padding: 8,
+    padding: 10,
     textAlign: 'center',
     fontSize: 16,
     backgroundColor: Colors.background,
+    color: Colors.text,
   },
   addSetBtn: {
     flexDirection: 'row',
@@ -357,11 +363,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    paddingVertical: 16,
+    paddingVertical: 18,
     backgroundColor: Colors.surface,
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: Colors.primary + '40',
+    borderColor: Colors.primary + '30',
     borderStyle: 'dashed',
   },
   addExerciseText: { color: Colors.primary, fontSize: 16, fontWeight: '600' },
@@ -374,9 +380,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: Colors.success,
+    backgroundColor: Colors.primary,
     paddingVertical: 18,
     paddingBottom: 34,
   },
-  finishBtnText: { color: '#fff', fontSize: 18, fontWeight: '700' },
+  finishBtnText: { color: Colors.background, fontSize: 18, fontWeight: '700' },
 });

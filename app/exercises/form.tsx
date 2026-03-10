@@ -42,6 +42,7 @@ export default function ExerciseFormScreen() {
       <TextInput
         style={styles.input}
         placeholder="e.g. Bench Press"
+        placeholderTextColor={Colors.textLight}
         value={name}
         onChangeText={setName}
         autoFocus
@@ -51,6 +52,7 @@ export default function ExerciseFormScreen() {
       <TextInput
         style={[styles.input, styles.textArea]}
         placeholder="e.g. Lie flat on bench, grip slightly wider than shoulders..."
+        placeholderTextColor={Colors.textLight}
         value={details}
         onChangeText={setDetails}
         multiline
@@ -61,6 +63,7 @@ export default function ExerciseFormScreen() {
         style={[styles.saveBtn, !name.trim() && styles.saveBtnDisabled]}
         onPress={handleSave}
         disabled={!name.trim()}
+        activeOpacity={0.8}
       >
         <Text style={styles.saveBtnText}>{isEdit ? 'Update' : 'Create'} Exercise</Text>
       </TouchableOpacity>
@@ -70,23 +73,24 @@ export default function ExerciseFormScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background, padding: 24 },
-  label: { fontSize: 16, fontWeight: '600', color: Colors.text, marginBottom: 8, marginTop: 16 },
+  label: { fontSize: 14, fontWeight: '600', color: Colors.textSecondary, marginBottom: 8, marginTop: 16, textTransform: 'uppercase', letterSpacing: 1 },
   input: {
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: 12,
-    padding: 14,
+    borderRadius: 14,
+    padding: 16,
     fontSize: 16,
     backgroundColor: Colors.surface,
+    color: Colors.text,
   },
   textArea: { minHeight: 100, textAlignVertical: 'top' },
   saveBtn: {
     backgroundColor: Colors.primary,
     paddingVertical: 16,
-    borderRadius: 12,
+    borderRadius: 14,
     alignItems: 'center',
     marginTop: 32,
   },
-  saveBtnDisabled: { opacity: 0.5 },
-  saveBtnText: { color: '#fff', fontSize: 18, fontWeight: '700' },
+  saveBtnDisabled: { opacity: 0.3 },
+  saveBtnText: { color: Colors.background, fontSize: 17, fontWeight: '700' },
 });

@@ -42,23 +42,24 @@ export default function ExercisesScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.searchBar}>
-        <Ionicons name="search" size={20} color={Colors.textLight} />
+        <Ionicons name="search" size={18} color={Colors.textLight} />
         <TextInput
           style={styles.searchInput}
           placeholder="Search exercises..."
+          placeholderTextColor={Colors.textLight}
           value={search}
           onChangeText={setSearch}
         />
         {search ? (
           <TouchableOpacity onPress={() => setSearch('')}>
-            <Ionicons name="close-circle" size={20} color={Colors.textLight} />
+            <Ionicons name="close-circle" size={18} color={Colors.textLight} />
           </TouchableOpacity>
         ) : null}
       </View>
 
       {exercises.length === 0 ? (
         <View style={styles.empty}>
-          <Ionicons name="barbell-outline" size={64} color={Colors.textLight} />
+          <Ionicons name="barbell-outline" size={48} color={Colors.textLight} />
           <Text style={styles.emptyText}>
             {search ? 'No exercises found' : 'No exercises yet'}
           </Text>
@@ -74,9 +75,10 @@ export default function ExercisesScreen() {
               style={styles.card}
               onPress={() => router.navigate(`/exercises/${item.id}`)}
               onLongPress={() => handleDelete(item)}
+              activeOpacity={0.7}
             >
               <View style={styles.cardIcon}>
-                <Ionicons name="barbell" size={22} color={Colors.primary} />
+                <Ionicons name="barbell" size={20} color={Colors.primary} />
               </View>
               <View style={styles.cardContent}>
                 <Text style={styles.cardTitle}>{item.name}</Text>
@@ -86,7 +88,7 @@ export default function ExercisesScreen() {
                   </Text>
                 ) : null}
               </View>
-              <Ionicons name="chevron-forward" size={20} color={Colors.textLight} />
+              <Ionicons name="chevron-forward" size={18} color={Colors.textLight} />
             </TouchableOpacity>
           )}
         />
@@ -95,8 +97,9 @@ export default function ExercisesScreen() {
       <TouchableOpacity
         style={styles.fab}
         onPress={() => router.navigate('/exercises/form')}
+        activeOpacity={0.8}
       >
-        <Ionicons name="add" size={28} color="#fff" />
+        <Ionicons name="add" size={28} color={Colors.background} />
       </TouchableOpacity>
     </View>
   );
@@ -108,29 +111,30 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.surface,
-    margin: 16,
+    margin: 20,
     marginBottom: 8,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    gap: 8,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    gap: 10,
     borderWidth: 1,
     borderColor: Colors.border,
   },
-  searchInput: { flex: 1, paddingVertical: 10, fontSize: 16 },
-  list: { padding: 16, paddingTop: 8 },
+  searchInput: { flex: 1, paddingVertical: 12, fontSize: 16, color: Colors.text },
+  list: { paddingHorizontal: 20, paddingTop: 8 },
   card: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.surface,
-    borderRadius: 10,
+    borderRadius: 14,
     padding: 14,
     marginBottom: 8,
-    elevation: 1,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   cardIcon: {
     width: 40,
     height: 40,
-    borderRadius: 20,
+    borderRadius: 10,
     backgroundColor: Colors.primary + '15',
     justifyContent: 'center',
     alignItems: 'center',
@@ -144,14 +148,18 @@ const styles = StyleSheet.create({
   emptySubtext: { fontSize: 13, color: Colors.textLight, marginTop: 4 },
   fab: {
     position: 'absolute',
-    bottom: 24,
+    bottom: 28,
     right: 24,
     width: 56,
     height: 56,
-    borderRadius: 28,
-    backgroundColor: Colors.accent,
+    borderRadius: 16,
+    backgroundColor: Colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 4,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
   },
 });
