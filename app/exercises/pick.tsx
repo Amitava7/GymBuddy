@@ -29,12 +29,21 @@ export default function PickExerciseScreen() {
 
   const handlePick = async (exerciseId: number) => {
     const existing = await db.getWorkoutExercises(Number(workoutId));
-    await db.addWorkoutExercise(Number(workoutId), exerciseId, existing.length);
-    // Also add a first empty set
-    const exs = await db.getWorkoutExercises(Number(workoutId));
-    const lastEx = exs[exs.length - 1];
-    if (lastEx) {
-      await db.addWorkoutSet(lastEx.id, 1);
+    const weId = await db.addWorkoutExercise(Number(workoutId), exerciseId, existing.length);
+    const lastData = await db.getLastWorkoutDataForExercise(exerciseId);
+    if (lastData) {
+      if (lastData.note) {
+        await db.updateWorkoutExerciseNote(weId, lastData.note);
+      }
+      if (lastData.sets.length > 0) {
+        for (const set of lastData.sets) {
+          await db.addWorkoutSet(weId, set.set_number, set.kg ?? undefined, set.reps ?? undefined);
+        }
+      } else {
+        await db.addWorkoutSet(weId, 1);
+      }
+    } else {
+      await db.addWorkoutSet(weId, 1);
     }
     router.back();
   };

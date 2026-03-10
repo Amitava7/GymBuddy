@@ -53,7 +53,7 @@ export default function HistoryScreen() {
             <TouchableOpacity
               style={styles.card}
               onPress={() =>
-                router.push(`/gym/${gymId}/workout/summary/${item.id}`)
+                router.navigate(`/gym/${gymId}/workout/summary/${item.id}`)
               }
             >
               <View style={styles.cardHeader}>

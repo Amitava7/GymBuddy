@@ -79,8 +79,6 @@ async function initDb(database: SQLite.SQLiteDatabase) {
   `);
 }
 
-// --- Gym operations ---
-
 export async function getGyms() {
   const database = await getDb();
   return database.getAllAsync<{ id: number; name: string; location: string | null }>(
@@ -102,8 +100,6 @@ export async function deleteGym(id: number) {
   const database = await getDb();
   await database.runAsync('DELETE FROM gyms WHERE id = ?', id);
 }
-
-// --- Exercise operations ---
 
 export async function getExercises(search?: string) {
   const database = await getDb();
@@ -150,8 +146,6 @@ export async function deleteExercise(id: number) {
   const database = await getDb();
   await database.runAsync('DELETE FROM exercises WHERE id = ?', id);
 }
-
-// --- Workout Template operations ---
 
 export async function getWorkoutTemplates(gymId: number) {
   const database = await getDb();
@@ -204,8 +198,6 @@ export async function deleteWorkoutTemplate(id: number) {
   await database.runAsync('DELETE FROM workout_templates WHERE id = ?', id);
 }
 
-// --- Workout operations ---
-
 export async function startWorkout(name: string, gymId: number, templateId?: number) {
   const database = await getDb();
   const result = await database.runAsync(
@@ -225,6 +217,11 @@ export async function finishWorkout(workoutId: number) {
      WHERE id = ?`,
     workoutId
   );
+}
+
+export async function deleteWorkout(id: number) {
+  const database = await getDb();
+  await database.runAsync('DELETE FROM workouts WHERE id = ?', id);
 }
 
 export async function getWorkout(id: number) {
@@ -283,8 +280,6 @@ export async function getWorkoutHistory(gymId?: number) {
   );
 }
 
-// --- Workout Exercise operations ---
-
 export async function addWorkoutExercise(workoutId: number, exerciseId: number, sortOrder: number) {
   const database = await getDb();
   const result = await database.runAsync(
@@ -334,8 +329,6 @@ export async function updateWorkoutExerciseNote(id: number, note: string) {
   );
 }
 
-// --- Workout Set operations ---
-
 export async function addWorkoutSet(workoutExerciseId: number, setNumber: number, kg?: number, reps?: number) {
   const database = await getDb();
   const result = await database.runAsync(
@@ -377,7 +370,32 @@ export async function getWorkoutSets(workoutExerciseId: number) {
   );
 }
 
-// --- Exercise history / trends ---
+export async function getLastWorkoutDataForExercise(exerciseId: number) {
+  const database = await getDb();
+  const lastExercise = await database.getFirstAsync<{
+    id: number;
+    note: string | null;
+  }>(
+    `SELECT we.id, we.note FROM workout_exercises we
+     JOIN workouts w ON we.workout_id = w.id
+     WHERE we.exercise_id = ? AND w.finished_at IS NOT NULL
+     ORDER BY w.started_at DESC
+     LIMIT 1`,
+    exerciseId
+  );
+  if (!lastExercise) return null;
+  const sets = await database.getAllAsync<{
+    set_number: number;
+    kg: number | null;
+    reps: number | null;
+  }>(
+    `SELECT set_number, kg, reps FROM workout_sets
+     WHERE workout_exercise_id = ?
+     ORDER BY set_number`,
+    lastExercise.id
+  );
+  return { note: lastExercise.note, sets };
+}
 
 export async function getExerciseHistory(exerciseId: number) {
   const database = await getDb();

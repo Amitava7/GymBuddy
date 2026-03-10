@@ -7,12 +7,9 @@ dist/
 web-build/
 expo-env.d.ts
 
-# Native builds
-android/app/build/
-android/.gradle/
-android/local.properties
-ios/Pods/
-ios/build/
+# Native builds (regenerated via `npx expo prebuild`)
+ios/
+android/
 *.jks
 *.p8
 *.p12

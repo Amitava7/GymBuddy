@@ -29,6 +29,7 @@ export default function WorkoutSummaryScreen() {
         const exs = await db.getWorkoutExercises(wId);
         const withSets = [];
         for (const ex of exs) {
+          if (!ex.is_completed) continue;
           const sets = await db.getWorkoutSets(ex.id);
           withSets.push({ ...ex, sets });
         }

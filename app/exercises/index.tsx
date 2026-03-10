@@ -72,7 +72,7 @@ export default function ExercisesScreen() {
           renderItem={({ item }) => (
             <TouchableOpacity
               style={styles.card}
-              onPress={() => router.push(`/exercises/${item.id}`)}
+              onPress={() => router.navigate(`/exercises/${item.id}`)}
               onLongPress={() => handleDelete(item)}
             >
               <View style={styles.cardIcon}>
@@ -94,7 +94,7 @@ export default function ExercisesScreen() {
 
       <TouchableOpacity
         style={styles.fab}
-        onPress={() => router.push('/exercises/form')}
+        onPress={() => router.navigate('/exercises/form')}
       >
         <Ionicons name="add" size={28} color="#fff" />
       </TouchableOpacity>

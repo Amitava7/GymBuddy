@@ -64,7 +64,7 @@ export default function HomeScreen() {
         <View style={styles.headerButtons}>
           <TouchableOpacity
             style={styles.headerBtn}
-            onPress={() => router.push('/exercises')}
+            onPress={() => router.navigate('/exercises')}
           >
             <Ionicons name="barbell-outline" size={20} color={Colors.primary} />
             <Text style={styles.headerBtnText}>Exercises</Text>
@@ -87,7 +87,7 @@ export default function HomeScreen() {
         renderItem={({ item }) => (
           <TouchableOpacity
             style={styles.card}
-            onPress={() => router.push(`/gym/${item.id}`)}
+            onPress={() => router.navigate(`/gym/${item.id}`)}
             onLongPress={() => handleDelete(item)}
           >
             <View style={styles.cardIcon}>

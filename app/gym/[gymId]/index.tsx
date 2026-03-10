@@ -44,10 +44,24 @@ export default function GymScreen() {
 
   const handleStartFromTemplate = async (template: any) => {
     const workoutId = await db.startWorkout(template.name, id, template.id);
-    // Copy template exercises to workout
     const exercises = await db.getTemplateExercises(template.id);
     for (const ex of exercises) {
-      await db.addWorkoutExercise(workoutId, ex.exercise_id, ex.sort_order);
+      const weId = await db.addWorkoutExercise(workoutId, ex.exercise_id, ex.sort_order);
+      const lastData = await db.getLastWorkoutDataForExercise(ex.exercise_id);
+      if (lastData) {
+        if (lastData.note) {
+          await db.updateWorkoutExerciseNote(weId, lastData.note);
+        }
+        if (lastData.sets.length > 0) {
+          for (const set of lastData.sets) {
+            await db.addWorkoutSet(weId, set.set_number, set.kg ?? undefined, set.reps ?? undefined);
+          }
+        } else {
+          await db.addWorkoutSet(weId, 1);
+        }
+      } else {
+        await db.addWorkoutSet(weId, 1);
+      }
     }
     router.push(`/gym/${id}/workout/${workoutId}`);
   };
@@ -73,14 +87,14 @@ export default function GymScreen() {
       <View style={styles.actions}>
         <TouchableOpacity
           style={styles.actionBtn}
-          onPress={() => router.push(`/gym/${id}/workout/new`)}
+          onPress={() => router.navigate(`/gym/${id}/workout/new`)}
         >
           <Ionicons name="add-circle" size={22} color="#fff" />
           <Text style={styles.actionBtnText}>New Workout</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.actionBtn, { backgroundColor: Colors.primaryDark }]}
-          onPress={() => router.push(`/gym/${id}/workout/history`)}
+          onPress={() => router.navigate(`/gym/${id}/workout/history`)}
         >
           <Ionicons name="time" size={22} color="#fff" />
           <Text style={styles.actionBtnText}>History</Text>

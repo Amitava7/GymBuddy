@@ -90,26 +90,23 @@ export default function ActiveWorkoutScreen() {
     const ex = exercises.find((e) => e.id === weId);
     if (!ex) return;
     const nextSetNum = ex.sets.length + 1;
-    await db.addWorkoutSet(weId, nextSetNum);
-    loadWorkout();
+    const newId = await db.addWorkoutSet(weId, nextSetNum);
+    setExercises((prev) =>
+      prev.map((e) =>
+        e.id === weId
+          ? { ...e, sets: [...e.sets, { id: newId, workout_exercise_id: weId, set_number: nextSetNum, kg: null, reps: null }] }
+          : e
+      )
+    );
   };
 
-  const handleUpdateSet = async (setId: number, field: 'kg' | 'reps', value: string) => {
-    const ex = exercises.find((e) => e.sets.some((s) => s.id === setId));
-    const set = ex?.sets.find((s) => s.id === setId);
-    if (!set) return;
-    const numVal = value === '' ? undefined : Number(value);
-    if (field === 'kg') {
-      await db.updateWorkoutSet(setId, numVal, set.reps ?? undefined);
-    } else {
-      await db.updateWorkoutSet(setId, set.kg ?? undefined, numVal);
-    }
-    // Update local state without full reload for responsiveness
+  const handleUpdateSet = (setId: number, field: 'kg' | 'reps', value: string) => {
+    const numVal = value === '' ? null : Number(value);
     setExercises((prev) =>
       prev.map((e) => ({
         ...e,
         sets: e.sets.map((s) =>
-          s.id === setId ? { ...s, [field]: numVal ?? null } : s
+          s.id === setId ? { ...s, [field]: numVal } : s
         ),
       }))
     );
@@ -117,18 +114,31 @@ export default function ActiveWorkoutScreen() {
 
   const handleDeleteSet = async (setId: number) => {
     await db.deleteWorkoutSet(setId);
-    loadWorkout();
+    setExercises((prev) =>
+      prev.map((e) => ({
+        ...e,
+        sets: e.sets.filter((s) => s.id !== setId),
+      }))
+    );
   };
 
   const handleToggleComplete = async (weId: number, current: number) => {
+    const ex = exercises.find((e) => e.id === weId);
+    if (ex) {
+      for (const set of ex.sets) {
+        await db.updateWorkoutSet(set.id, set.kg ?? undefined, set.reps ?? undefined);
+      }
+      if (ex.note != null) {
+        await db.updateWorkoutExerciseNote(weId, ex.note);
+      }
+    }
     await db.toggleWorkoutExercise(weId, current === 0);
     setExercises((prev) =>
       prev.map((e) => (e.id === weId ? { ...e, is_completed: current === 0 ? 1 : 0 } : e))
     );
   };
 
-  const handleUpdateNote = async (weId: number, note: string) => {
-    await db.updateWorkoutExerciseNote(weId, note);
+  const handleUpdateNote = (weId: number, note: string) => {
     setExercises((prev) =>
       prev.map((e) => (e.id === weId ? { ...e, note } : e))
     );
@@ -136,12 +146,27 @@ export default function ActiveWorkoutScreen() {
 
   const handleFinish = () => {
     Alert.alert('Finish Workout', 'Complete this workout?', [
-      { text: 'Cancel', style: 'cancel' },
+      { text: 'Keep Going', style: 'cancel' },
+      {
+        text: 'Cancel Workout',
+        style: 'destructive',
+        onPress: async () => {
+          await db.deleteWorkout(wId);
+          router.replace(`/gym/${gymId}`);
+        },
+      },
       {
         text: 'Finish',
         onPress: async () => {
+          for (const ex of exercises) {
+            for (const set of ex.sets) {
+              await db.updateWorkoutSet(set.id, set.kg ?? undefined, set.reps ?? undefined);
+            }
+            if (ex.note != null) {
+              await db.updateWorkoutExerciseNote(ex.id, ex.note);
+            }
+          }
           await db.finishWorkout(wId);
-          // Save as template if not from one already
           const workout = await db.getWorkout(wId);
           if (workout && !workout.template_id) {
             const templateId = await db.createWorkoutTemplate(workout.name, gId);

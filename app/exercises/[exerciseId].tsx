@@ -90,7 +90,6 @@ export default function ExerciseDetailScreen() {
             <Text style={styles.noHistory}>No workout data yet for this exercise</Text>
           ) : (
             <>
-              {/* Simple bar chart showing volume trend */}
               <View style={styles.chart}>
                 <Text style={styles.chartTitle}>Volume per Session</Text>
                 <View style={styles.bars}>

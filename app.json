@@ -1,0 +1,24 @@
+{
+  "expo": {
+    "name": "GymBuddy",
+    "slug": "gymbuddy",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "gymbuddy",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.gymbuddy.app"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.gymbuddy.app"
+    },
+    "plugins": [
+      "expo-router"
+    ]
+  }
+}
