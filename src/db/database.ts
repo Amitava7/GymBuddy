@@ -1,444 +1,375 @@
-import * as SQLite from 'expo-sqlite';
+import { drizzle } from 'drizzle-orm/expo-sqlite';
+import { openDatabaseSync } from 'expo-sqlite';
+import { eq, like, desc, sql, and, isNotNull, count } from 'drizzle-orm';
+import {
+  gyms,
+  exercises,
+  workoutTemplates,
+  templateExercises,
+  workouts,
+  workoutExercises,
+  workoutSets,
+} from './schema';
 
-let db: SQLite.SQLiteDatabase | null = null;
+// --- Database connection ---
 
-export async function getDb(): Promise<SQLite.SQLiteDatabase> {
-  if (db) return db;
-  db = await SQLite.openDatabaseAsync('gymbuddy.db');
-  await initDb(db);
-  return db;
-}
+const expoDb = openDatabaseSync('gymbuddy.db');
+expoDb.execSync('PRAGMA journal_mode = WAL;');
+expoDb.execSync('PRAGMA foreign_keys = ON;');
 
-async function initDb(database: SQLite.SQLiteDatabase) {
-  await database.execAsync(`
-    PRAGMA journal_mode = WAL;
-    PRAGMA foreign_keys = ON;
+export const db = drizzle(expoDb);
 
-    CREATE TABLE IF NOT EXISTS gyms (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      location TEXT,
-      created_at TEXT DEFAULT (datetime('now'))
-    );
-
-    CREATE TABLE IF NOT EXISTS exercises (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      details TEXT,
-      created_at TEXT DEFAULT (datetime('now'))
-    );
-
-    CREATE TABLE IF NOT EXISTS workout_templates (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      gym_id INTEGER NOT NULL,
-      created_at TEXT DEFAULT (datetime('now')),
-      FOREIGN KEY (gym_id) REFERENCES gyms(id) ON DELETE CASCADE
-    );
-
-    CREATE TABLE IF NOT EXISTS template_exercises (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      template_id INTEGER NOT NULL,
-      exercise_id INTEGER NOT NULL,
-      sort_order INTEGER DEFAULT 0,
-      FOREIGN KEY (template_id) REFERENCES workout_templates(id) ON DELETE CASCADE,
-      FOREIGN KEY (exercise_id) REFERENCES exercises(id) ON DELETE CASCADE
-    );
-
-    CREATE TABLE IF NOT EXISTS workouts (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      template_id INTEGER,
-      gym_id INTEGER NOT NULL,
-      name TEXT NOT NULL,
-      started_at TEXT DEFAULT (datetime('now')),
-      finished_at TEXT,
-      duration_seconds INTEGER DEFAULT 0,
-      FOREIGN KEY (template_id) REFERENCES workout_templates(id) ON DELETE SET NULL,
-      FOREIGN KEY (gym_id) REFERENCES gyms(id) ON DELETE CASCADE
-    );
-
-    CREATE TABLE IF NOT EXISTS workout_exercises (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      workout_id INTEGER NOT NULL,
-      exercise_id INTEGER NOT NULL,
-      note TEXT,
-      is_completed INTEGER DEFAULT 0,
-      sort_order INTEGER DEFAULT 0,
-      FOREIGN KEY (workout_id) REFERENCES workouts(id) ON DELETE CASCADE,
-      FOREIGN KEY (exercise_id) REFERENCES exercises(id) ON DELETE CASCADE
-    );
-
-    CREATE TABLE IF NOT EXISTS workout_sets (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      workout_exercise_id INTEGER NOT NULL,
-      set_number INTEGER NOT NULL,
-      kg REAL,
-      reps INTEGER,
-      FOREIGN KEY (workout_exercise_id) REFERENCES workout_exercises(id) ON DELETE CASCADE
-    );
-  `);
-}
+// --- Gyms ---
 
 export async function getGyms() {
-  const database = await getDb();
-  return database.getAllAsync<{ id: number; name: string; location: string | null }>(
-    'SELECT * FROM gyms ORDER BY name'
-  );
+  return db.select().from(gyms).orderBy(gyms.name).all();
 }
 
 export async function createGym(name: string, location?: string) {
-  const database = await getDb();
-  const result = await database.runAsync(
-    'INSERT INTO gyms (name, location) VALUES (?, ?)',
-    name,
-    location || null
-  );
-  return result.lastInsertRowId;
+  const inserted = db
+    .insert(gyms)
+    .values({ name, location: location || null })
+    .returning({ id: gyms.id })
+    .get();
+  return inserted.id;
 }
 
 export async function deleteGym(id: number) {
-  const database = await getDb();
-  await database.runAsync('DELETE FROM gyms WHERE id = ?', id);
+  db.delete(gyms).where(eq(gyms.id, id)).run();
 }
 
-export async function getExercises(search?: string) {
-  const database = await getDb();
-  if (search) {
-    return database.getAllAsync<{ id: number; name: string; details: string | null }>(
-      'SELECT * FROM exercises WHERE name LIKE ? ORDER BY name',
-      `%${search}%`
-    );
+// --- Exercises ---
+
+export const MUSCLE_TAGS = ['chest', 'back', 'shoulders', 'arms', 'legs', 'core', 'glutes'] as const;
+export const EQUIPMENT_TAGS = ['barbell', 'dumbbell', 'machine', 'cable', 'bodyweight', 'kettlebell'] as const;
+
+export async function getExercises(search?: string, tags?: string[]) {
+  const conditions = [];
+  if (search) conditions.push(like(exercises.name, `%${search}%`));
+  if (tags && tags.length > 0) {
+    for (const tag of tags) conditions.push(like(exercises.tags, `%${tag}%`));
   }
-  return database.getAllAsync<{ id: number; name: string; details: string | null }>(
-    'SELECT * FROM exercises ORDER BY name'
-  );
+  const query = db.select().from(exercises);
+  if (conditions.length > 0) {
+    return query.where(and(...conditions)).orderBy(exercises.name).all();
+  }
+  return query.orderBy(exercises.name).all();
 }
 
 export async function getExercise(id: number) {
-  const database = await getDb();
-  return database.getFirstAsync<{ id: number; name: string; details: string | null }>(
-    'SELECT * FROM exercises WHERE id = ?',
-    id
-  );
+  return db.select().from(exercises).where(eq(exercises.id, id)).get() ?? null;
 }
 
-export async function createExercise(name: string, details?: string) {
-  const database = await getDb();
-  const result = await database.runAsync(
-    'INSERT INTO exercises (name, details) VALUES (?, ?)',
-    name,
-    details || null
-  );
-  return result.lastInsertRowId;
+export async function createExercise(name: string, details?: string, tags?: string) {
+  const inserted = db
+    .insert(exercises)
+    .values({ name, details: details || null, tags: tags || null })
+    .returning({ id: exercises.id })
+    .get();
+  return inserted.id;
 }
 
-export async function updateExercise(id: number, name: string, details?: string) {
-  const database = await getDb();
-  await database.runAsync(
-    'UPDATE exercises SET name = ?, details = ? WHERE id = ?',
-    name,
-    details || null,
-    id
-  );
+export async function updateExercise(id: number, name: string, details?: string, tags?: string) {
+  db.update(exercises)
+    .set({ name, details: details || null, tags: tags || null })
+    .where(eq(exercises.id, id))
+    .run();
 }
 
 export async function deleteExercise(id: number) {
-  const database = await getDb();
-  await database.runAsync('DELETE FROM exercises WHERE id = ?', id);
+  db.delete(exercises).where(eq(exercises.id, id)).run();
 }
 
+// --- Workout Templates ---
+
 export async function getWorkoutTemplates(gymId: number) {
-  const database = await getDb();
-  return database.getAllAsync<{ id: number; name: string; gym_id: number; created_at: string }>(
-    'SELECT * FROM workout_templates WHERE gym_id = ? ORDER BY created_at DESC',
-    gymId
-  );
+  return db
+    .select()
+    .from(workoutTemplates)
+    .where(eq(workoutTemplates.gym_id, gymId))
+    .orderBy(desc(workoutTemplates.created_at))
+    .all();
 }
 
 export async function createWorkoutTemplate(name: string, gymId: number) {
-  const database = await getDb();
-  const result = await database.runAsync(
-    'INSERT INTO workout_templates (name, gym_id) VALUES (?, ?)',
-    name,
-    gymId
-  );
-  return result.lastInsertRowId;
+  const inserted = db
+    .insert(workoutTemplates)
+    .values({ name, gym_id: gymId })
+    .returning({ id: workoutTemplates.id })
+    .get();
+  return inserted.id;
 }
 
 export async function addTemplateExercise(templateId: number, exerciseId: number, sortOrder: number) {
-  const database = await getDb();
-  await database.runAsync(
-    'INSERT INTO template_exercises (template_id, exercise_id, sort_order) VALUES (?, ?, ?)',
-    templateId,
-    exerciseId,
-    sortOrder
-  );
+  db.insert(templateExercises)
+    .values({
+      template_id: templateId,
+      exercise_id: exerciseId,
+      sort_order: sortOrder,
+    })
+    .run();
 }
 
 export async function getTemplateExercises(templateId: number) {
-  const database = await getDb();
-  return database.getAllAsync<{
-    id: number;
-    template_id: number;
-    exercise_id: number;
-    sort_order: number;
-    name: string;
-    details: string | null;
-  }>(
-    `SELECT te.*, e.name, e.details FROM template_exercises te
-     JOIN exercises e ON te.exercise_id = e.id
-     WHERE te.template_id = ?
-     ORDER BY te.sort_order`,
-    templateId
-  );
+  return db
+    .select({
+      id: templateExercises.id,
+      template_id: templateExercises.template_id,
+      exercise_id: templateExercises.exercise_id,
+      sort_order: templateExercises.sort_order,
+      name: exercises.name,
+      details: exercises.details,
+    })
+    .from(templateExercises)
+    .innerJoin(exercises, eq(templateExercises.exercise_id, exercises.id))
+    .where(eq(templateExercises.template_id, templateId))
+    .orderBy(templateExercises.sort_order)
+    .all();
 }
 
 export async function deleteWorkoutTemplate(id: number) {
-  const database = await getDb();
-  await database.runAsync('DELETE FROM workout_templates WHERE id = ?', id);
+  db.delete(workoutTemplates).where(eq(workoutTemplates.id, id)).run();
 }
 
+// --- Workouts ---
+
 export async function startWorkout(name: string, gymId: number, templateId?: number) {
-  const database = await getDb();
-  const result = await database.runAsync(
-    'INSERT INTO workouts (name, gym_id, template_id) VALUES (?, ?, ?)',
-    name,
-    gymId,
-    templateId || null
-  );
-  return result.lastInsertRowId;
+  const inserted = db
+    .insert(workouts)
+    .values({ name, gym_id: gymId, template_id: templateId || null })
+    .returning({ id: workouts.id })
+    .get();
+  return inserted.id;
 }
 
 export async function finishWorkout(workoutId: number) {
-  const database = await getDb();
-  await database.runAsync(
-    `UPDATE workouts SET finished_at = datetime('now'),
-     duration_seconds = CAST((julianday(datetime('now')) - julianday(started_at)) * 86400 AS INTEGER)
-     WHERE id = ?`,
-    workoutId
-  );
+  db.update(workouts)
+    .set({
+      finished_at: sql`datetime('now')`,
+      duration_seconds: sql<number>`CAST((julianday(datetime('now')) - julianday(${workouts.started_at})) * 86400 AS INTEGER)`,
+    })
+    .where(eq(workouts.id, workoutId))
+    .run();
+}
+
+export async function setWorkoutTemplate(workoutId: number, templateId: number) {
+  db.update(workouts)
+    .set({ template_id: templateId })
+    .where(eq(workouts.id, workoutId))
+    .run();
 }
 
 export async function deleteWorkout(id: number) {
-  const database = await getDb();
-  await database.runAsync('DELETE FROM workouts WHERE id = ?', id);
+  db.delete(workouts).where(eq(workouts.id, id)).run();
 }
 
 export async function getWorkout(id: number) {
-  const database = await getDb();
-  return database.getFirstAsync<{
-    id: number;
-    template_id: number | null;
-    gym_id: number;
-    name: string;
-    started_at: string;
-    finished_at: string | null;
-    duration_seconds: number;
-  }>('SELECT * FROM workouts WHERE id = ?', id);
+  return db.select().from(workouts).where(eq(workouts.id, id)).get() ?? null;
 }
 
 export async function getWorkoutHistory(gymId?: number) {
-  const database = await getDb();
+  const baseQuery = db
+    .select({
+      id: workouts.id,
+      name: workouts.name,
+      gym_id: workouts.gym_id,
+      gym_name: gyms.name,
+      started_at: workouts.started_at,
+      finished_at: workouts.finished_at,
+      duration_seconds: workouts.duration_seconds,
+      exercise_count: sql<number>`(SELECT COUNT(*) FROM workout_exercises we WHERE we.workout_id = ${workouts.id})`,
+      total_sets: sql<number>`(SELECT COUNT(*) FROM workout_sets ws JOIN workout_exercises we ON ws.workout_exercise_id = we.id WHERE we.workout_id = ${workouts.id})`,
+    })
+    .from(workouts)
+    .innerJoin(gyms, eq(workouts.gym_id, gyms.id));
+
   if (gymId) {
-    return database.getAllAsync<{
-      id: number;
-      name: string;
-      gym_id: number;
-      gym_name: string;
-      started_at: string;
-      finished_at: string | null;
-      duration_seconds: number;
-      exercise_count: number;
-      total_sets: number;
-    }>(
-      `SELECT w.*, g.name as gym_name,
-       (SELECT COUNT(*) FROM workout_exercises we WHERE we.workout_id = w.id) as exercise_count,
-       (SELECT COUNT(*) FROM workout_sets ws JOIN workout_exercises we ON ws.workout_exercise_id = we.id WHERE we.workout_id = w.id) as total_sets
-       FROM workouts w JOIN gyms g ON w.gym_id = g.id
-       WHERE w.finished_at IS NOT NULL AND w.gym_id = ?
-       ORDER BY w.started_at DESC`,
-      gymId
-    );
+    return baseQuery
+      .where(and(isNotNull(workouts.finished_at), eq(workouts.gym_id, gymId)))
+      .orderBy(desc(workouts.started_at))
+      .all();
   }
-  return database.getAllAsync<{
-    id: number;
-    name: string;
-    gym_id: number;
-    gym_name: string;
-    started_at: string;
-    finished_at: string | null;
-    duration_seconds: number;
-    exercise_count: number;
-    total_sets: number;
-  }>(
-    `SELECT w.*, g.name as gym_name,
-     (SELECT COUNT(*) FROM workout_exercises we WHERE we.workout_id = w.id) as exercise_count,
-     (SELECT COUNT(*) FROM workout_sets ws JOIN workout_exercises we ON ws.workout_exercise_id = we.id WHERE we.workout_id = w.id) as total_sets
-     FROM workouts w JOIN gyms g ON w.gym_id = g.id
-     WHERE w.finished_at IS NOT NULL
-     ORDER BY w.started_at DESC`
-  );
+
+  return baseQuery
+    .where(isNotNull(workouts.finished_at))
+    .orderBy(desc(workouts.started_at))
+    .all();
 }
 
+// --- Workout Exercises ---
+
 export async function addWorkoutExercise(workoutId: number, exerciseId: number, sortOrder: number) {
-  const database = await getDb();
-  const result = await database.runAsync(
-    'INSERT INTO workout_exercises (workout_id, exercise_id, sort_order) VALUES (?, ?, ?)',
-    workoutId,
-    exerciseId,
-    sortOrder
-  );
-  return result.lastInsertRowId;
+  const inserted = db
+    .insert(workoutExercises)
+    .values({ workout_id: workoutId, exercise_id: exerciseId, sort_order: sortOrder })
+    .returning({ id: workoutExercises.id })
+    .get();
+  return inserted.id;
 }
 
 export async function getWorkoutExercises(workoutId: number) {
-  const database = await getDb();
-  return database.getAllAsync<{
-    id: number;
-    workout_id: number;
-    exercise_id: number;
-    note: string | null;
-    is_completed: number;
-    sort_order: number;
-    name: string;
-    details: string | null;
-  }>(
-    `SELECT we.*, e.name, e.details FROM workout_exercises we
-     JOIN exercises e ON we.exercise_id = e.id
-     WHERE we.workout_id = ?
-     ORDER BY we.sort_order`,
-    workoutId
-  );
+  return db
+    .select({
+      id: workoutExercises.id,
+      workout_id: workoutExercises.workout_id,
+      exercise_id: workoutExercises.exercise_id,
+      note: workoutExercises.note,
+      is_completed: workoutExercises.is_completed,
+      sort_order: workoutExercises.sort_order,
+      name: exercises.name,
+      details: exercises.details,
+    })
+    .from(workoutExercises)
+    .innerJoin(exercises, eq(workoutExercises.exercise_id, exercises.id))
+    .where(eq(workoutExercises.workout_id, workoutId))
+    .orderBy(workoutExercises.sort_order)
+    .all();
 }
 
 export async function toggleWorkoutExercise(id: number, completed: boolean) {
-  const database = await getDb();
-  await database.runAsync(
-    'UPDATE workout_exercises SET is_completed = ? WHERE id = ?',
-    completed ? 1 : 0,
-    id
-  );
+  db.update(workoutExercises)
+    .set({ is_completed: completed ? 1 : 0 })
+    .where(eq(workoutExercises.id, id))
+    .run();
 }
 
 export async function updateWorkoutExerciseNote(id: number, note: string) {
-  const database = await getDb();
-  await database.runAsync(
-    'UPDATE workout_exercises SET note = ? WHERE id = ?',
-    note,
-    id
-  );
+  db.update(workoutExercises)
+    .set({ note })
+    .where(eq(workoutExercises.id, id))
+    .run();
 }
 
+export async function deleteWorkoutExercise(id: number) {
+  db.delete(workoutSets).where(eq(workoutSets.workout_exercise_id, id)).run();
+  db.delete(workoutExercises).where(eq(workoutExercises.id, id)).run();
+}
+
+// --- Workout Sets ---
+
 export async function addWorkoutSet(workoutExerciseId: number, setNumber: number, kg?: number, reps?: number) {
-  const database = await getDb();
-  const result = await database.runAsync(
-    'INSERT INTO workout_sets (workout_exercise_id, set_number, kg, reps) VALUES (?, ?, ?, ?)',
-    workoutExerciseId,
-    setNumber,
-    kg ?? null,
-    reps ?? null
-  );
-  return result.lastInsertRowId;
+  const inserted = db
+    .insert(workoutSets)
+    .values({
+      workout_exercise_id: workoutExerciseId,
+      set_number: setNumber,
+      kg: kg ?? null,
+      reps: reps ?? null,
+    })
+    .returning({ id: workoutSets.id })
+    .get();
+  return inserted.id;
 }
 
 export async function updateWorkoutSet(id: number, kg?: number, reps?: number) {
-  const database = await getDb();
-  await database.runAsync(
-    'UPDATE workout_sets SET kg = ?, reps = ? WHERE id = ?',
-    kg ?? null,
-    reps ?? null,
-    id
-  );
+  db.update(workoutSets)
+    .set({ kg: kg ?? null, reps: reps ?? null })
+    .where(eq(workoutSets.id, id))
+    .run();
 }
 
 export async function deleteWorkoutSet(id: number) {
-  const database = await getDb();
-  await database.runAsync('DELETE FROM workout_sets WHERE id = ?', id);
+  db.delete(workoutSets).where(eq(workoutSets.id, id)).run();
 }
 
 export async function getWorkoutSets(workoutExerciseId: number) {
-  const database = await getDb();
-  return database.getAllAsync<{
-    id: number;
-    workout_exercise_id: number;
-    set_number: number;
-    kg: number | null;
-    reps: number | null;
-  }>(
-    'SELECT * FROM workout_sets WHERE workout_exercise_id = ? ORDER BY set_number',
-    workoutExerciseId
-  );
+  return db
+    .select()
+    .from(workoutSets)
+    .where(eq(workoutSets.workout_exercise_id, workoutExerciseId))
+    .orderBy(workoutSets.set_number)
+    .all();
 }
 
-export async function getLastWorkoutDataForExercise(exerciseId: number) {
-  const database = await getDb();
-  const lastExercise = await database.getFirstAsync<{
-    id: number;
-    note: string | null;
-  }>(
-    `SELECT we.id, we.note FROM workout_exercises we
-     JOIN workouts w ON we.workout_id = w.id
-     WHERE we.exercise_id = ? AND w.finished_at IS NOT NULL
-     ORDER BY w.started_at DESC
-     LIMIT 1`,
-    exerciseId
-  );
+// --- Exercise History & Records ---
+
+export async function getLastWorkoutDataForExercise(exerciseId: number, templateId?: number | null) {
+  let lastExercise: { id: number; note: string | null } | undefined;
+
+  if (templateId) {
+    lastExercise = db
+      .select({
+        id: workoutExercises.id,
+        note: workoutExercises.note,
+      })
+      .from(workoutExercises)
+      .innerJoin(workouts, eq(workoutExercises.workout_id, workouts.id))
+      .where(
+        and(
+          eq(workoutExercises.exercise_id, exerciseId),
+          isNotNull(workouts.finished_at),
+          eq(workouts.template_id, templateId),
+        )
+      )
+      .orderBy(desc(workouts.started_at))
+      .limit(1)
+      .get();
+  }
+
+  if (!lastExercise && !templateId) {
+    lastExercise = db
+      .select({
+        id: workoutExercises.id,
+        note: workoutExercises.note,
+      })
+      .from(workoutExercises)
+      .innerJoin(workouts, eq(workoutExercises.workout_id, workouts.id))
+      .where(
+        and(
+          eq(workoutExercises.exercise_id, exerciseId),
+          isNotNull(workouts.finished_at),
+        )
+      )
+      .orderBy(desc(workouts.started_at))
+      .limit(1)
+      .get();
+  }
+
   if (!lastExercise) return null;
-  const sets = await database.getAllAsync<{
-    set_number: number;
-    kg: number | null;
-    reps: number | null;
-  }>(
-    `SELECT set_number, kg, reps FROM workout_sets
-     WHERE workout_exercise_id = ?
-     ORDER BY set_number`,
-    lastExercise.id
-  );
+
+  const sets = db
+    .select({
+      set_number: workoutSets.set_number,
+      kg: workoutSets.kg,
+      reps: workoutSets.reps,
+    })
+    .from(workoutSets)
+    .where(eq(workoutSets.workout_exercise_id, lastExercise.id))
+    .orderBy(workoutSets.set_number)
+    .all();
+
   return { note: lastExercise.note, sets };
 }
 
 export async function getExerciseHistory(exerciseId: number) {
-  const database = await getDb();
-  return database.getAllAsync<{
-    workout_date: string;
-    workout_name: string;
-    max_kg: number;
-    max_reps: number;
-    total_sets: number;
-    total_volume: number;
-  }>(
-    `SELECT
-       w.started_at as workout_date,
-       w.name as workout_name,
-       MAX(ws.kg) as max_kg,
-       MAX(ws.reps) as max_reps,
-       COUNT(ws.id) as total_sets,
-       SUM(COALESCE(ws.kg, 0) * COALESCE(ws.reps, 0)) as total_volume
-     FROM workout_sets ws
-     JOIN workout_exercises we ON ws.workout_exercise_id = we.id
-     JOIN workouts w ON we.workout_id = w.id
-     WHERE we.exercise_id = ? AND w.finished_at IS NOT NULL
-     GROUP BY w.id
-     ORDER BY w.started_at DESC`,
-    exerciseId
-  );
+  return db
+    .select({
+      workout_date: workouts.started_at,
+      workout_name: workouts.name,
+      max_kg: sql<number>`MAX(${workoutSets.kg})`,
+      max_reps: sql<number>`MAX(${workoutSets.reps})`,
+      total_sets: count(workoutSets.id),
+      total_volume: sql<number>`SUM(COALESCE(${workoutSets.kg}, 0) * COALESCE(${workoutSets.reps}, 0))`,
+    })
+    .from(workoutSets)
+    .innerJoin(workoutExercises, eq(workoutSets.workout_exercise_id, workoutExercises.id))
+    .innerJoin(workouts, eq(workoutExercises.workout_id, workouts.id))
+    .where(and(eq(workoutExercises.exercise_id, exerciseId), isNotNull(workouts.finished_at)))
+    .groupBy(workouts.id)
+    .orderBy(desc(workouts.started_at))
+    .all();
 }
 
 export async function getExerciseRecords(exerciseId: number) {
-  const database = await getDb();
-  return database.getFirstAsync<{
-    max_kg: number | null;
-    max_reps: number | null;
-    max_volume: number | null;
-  }>(
-    `SELECT
-       MAX(ws.kg) as max_kg,
-       MAX(ws.reps) as max_reps,
-       MAX(COALESCE(ws.kg, 0) * COALESCE(ws.reps, 0)) as max_volume
-     FROM workout_sets ws
-     JOIN workout_exercises we ON ws.workout_exercise_id = we.id
-     JOIN workouts w ON we.workout_id = w.id
-     WHERE we.exercise_id = ? AND w.finished_at IS NOT NULL`,
-    exerciseId
-  );
+  return db
+    .select({
+      max_kg: sql<number | null>`MAX(${workoutSets.kg})`,
+      max_reps: sql<number | null>`MAX(${workoutSets.reps})`,
+      max_volume: sql<number | null>`MAX(COALESCE(${workoutSets.kg}, 0) * COALESCE(${workoutSets.reps}, 0))`,
+    })
+    .from(workoutSets)
+    .innerJoin(workoutExercises, eq(workoutSets.workout_exercise_id, workoutExercises.id))
+    .innerJoin(workouts, eq(workoutExercises.workout_id, workouts.id))
+    .where(and(eq(workoutExercises.exercise_id, exerciseId), isNotNull(workouts.finished_at)))
+    .get() ?? null;
 }

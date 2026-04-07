@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { Colors } from '../../src/constants/colors';
-import { createExercise, updateExercise, getExercise } from '../../src/db/database';
+import { createExercise, updateExercise, getExercise, MUSCLE_TAGS, EQUIPMENT_TAGS } from '../../src/db/database';
 
 export default function ExerciseFormScreen() {
   const { exerciseId } = useLocalSearchParams<{ exerciseId?: string }>();
@@ -11,6 +11,7 @@ export default function ExerciseFormScreen() {
 
   const [name, setName] = useState('');
   const [details, setDetails] = useState('');
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
   useEffect(() => {
     if (isEdit) {
@@ -19,23 +20,31 @@ export default function ExerciseFormScreen() {
         if (ex) {
           setName(ex.name);
           setDetails(ex.details || '');
+          setSelectedTags(ex.tags ? ex.tags.split(',').filter(Boolean) : []);
         }
       })();
     }
   }, [exerciseId, isEdit]);
 
+  const toggleTag = (tag: string) => {
+    setSelectedTags(prev =>
+      prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
+    );
+  };
+
   const handleSave = async () => {
     if (!name.trim()) return;
+    const tagsStr = selectedTags.length > 0 ? selectedTags.join(',') : undefined;
     if (isEdit) {
-      await updateExercise(Number(exerciseId), name.trim(), details.trim() || undefined);
+      await updateExercise(Number(exerciseId), name.trim(), details.trim() || undefined, tagsStr);
     } else {
-      await createExercise(name.trim(), details.trim() || undefined);
+      await createExercise(name.trim(), details.trim() || undefined, tagsStr);
     }
     router.back();
   };
 
   return (
-    <View style={styles.container}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <Stack.Screen options={{ title: isEdit ? 'Edit Exercise' : 'New Exercise' }} />
 
       <Text style={styles.label}>Exercise Name</Text>
@@ -59,6 +68,38 @@ export default function ExerciseFormScreen() {
         numberOfLines={4}
       />
 
+      <Text style={styles.label}>Muscle Groups</Text>
+      <View style={styles.tagRow}>
+        {MUSCLE_TAGS.map(tag => (
+          <TouchableOpacity
+            key={tag}
+            style={[styles.tag, selectedTags.includes(tag) && styles.tagSelected]}
+            onPress={() => toggleTag(tag)}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.tagText, selectedTags.includes(tag) && styles.tagTextSelected]}>
+              {tag}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <Text style={styles.label}>Equipment</Text>
+      <View style={styles.tagRow}>
+        {EQUIPMENT_TAGS.map(tag => (
+          <TouchableOpacity
+            key={tag}
+            style={[styles.tag, selectedTags.includes(tag) && styles.tagSelected]}
+            onPress={() => toggleTag(tag)}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.tagText, selectedTags.includes(tag) && styles.tagTextSelected]}>
+              {tag}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
       <TouchableOpacity
         style={[styles.saveBtn, !name.trim() && styles.saveBtnDisabled]}
         onPress={handleSave}
@@ -67,13 +108,22 @@ export default function ExerciseFormScreen() {
       >
         <Text style={styles.saveBtnText}>{isEdit ? 'Update' : 'Create'} Exercise</Text>
       </TouchableOpacity>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background, padding: 24 },
-  label: { fontSize: 14, fontWeight: '600', color: Colors.textSecondary, marginBottom: 8, marginTop: 16, textTransform: 'uppercase', letterSpacing: 1 },
+  container: { flex: 1, backgroundColor: Colors.background },
+  content: { padding: 24, paddingBottom: 48 },
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+    marginBottom: 8,
+    marginTop: 16,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
   input: {
     borderWidth: 1,
     borderColor: Colors.border,
@@ -84,6 +134,21 @@ const styles = StyleSheet.create({
     color: Colors.text,
   },
   textArea: { minHeight: 100, textAlignVertical: 'top' },
+  tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  tag: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surface,
+  },
+  tagSelected: {
+    backgroundColor: Colors.primary + '20',
+    borderColor: Colors.primary,
+  },
+  tagText: { fontSize: 14, color: Colors.textSecondary, textTransform: 'capitalize' },
+  tagTextSelected: { color: Colors.primary, fontWeight: '600' },
   saveBtn: {
     backgroundColor: Colors.primary,
     paddingVertical: 16,

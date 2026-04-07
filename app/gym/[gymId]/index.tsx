@@ -47,7 +47,7 @@ export default function GymScreen() {
     const exercises = await db.getTemplateExercises(template.id);
     for (const ex of exercises) {
       const weId = await db.addWorkoutExercise(workoutId, ex.exercise_id, ex.sort_order);
-      const lastData = await db.getLastWorkoutDataForExercise(ex.exercise_id);
+      const lastData = await db.getLastWorkoutDataForExercise(ex.exercise_id, template.id);
       if (lastData) {
         if (lastData.note) {
           await db.updateWorkoutExerciseNote(weId, lastData.note);

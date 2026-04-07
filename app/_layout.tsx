@@ -1,8 +1,38 @@
+import { useEffect } from 'react';
+import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { useMigrations } from 'drizzle-orm/expo-sqlite/migrator';
 import { Colors } from '../src/constants/colors';
+import { db } from '../src/db/database';
+import migrations from '../src/db/drizzle/migrations';
+import { seedExercisesIfNeeded } from '../src/db/seed';
 
 export default function RootLayout() {
+  const { success, error } = useMigrations(db, migrations);
+
+  useEffect(() => {
+    if (success) {
+      seedExercisesIfNeeded();
+    }
+  }, [success]);
+
+  if (error) {
+    return (
+      <View style={migrationStyles.container}>
+        <Text style={migrationStyles.errorText}>Migration error: {error.message}</Text>
+      </View>
+    );
+  }
+
+  if (!success) {
+    return (
+      <View style={migrationStyles.container}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+      </View>
+    );
+  }
+
   return (
     <>
       <StatusBar style="light" />
@@ -29,3 +59,18 @@ export default function RootLayout() {
     </>
   );
 }
+
+const migrationStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: Colors.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  errorText: {
+    color: Colors.danger,
+    fontSize: 16,
+    textAlign: 'center',
+    padding: 20,
+  },
+});

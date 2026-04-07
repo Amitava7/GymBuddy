@@ -106,7 +106,7 @@ export default function WorkoutSummaryScreen() {
 
       <TouchableOpacity
         style={styles.doneBtn}
-        onPress={() => router.replace(`/gym/${gymId}`)}
+        onPress={() => router.dismissTo(`/gym/${gymId}`)}
         activeOpacity={0.8}
       >
         <Text style={styles.doneBtnText}>Back to Gym</Text>

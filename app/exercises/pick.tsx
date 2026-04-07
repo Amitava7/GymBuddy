@@ -6,31 +6,42 @@ import {
   TouchableOpacity,
   TextInput,
   StyleSheet,
+
 } from 'react-native';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../src/constants/colors';
 import * as db from '../../src/db/database';
 
+const ALL_FILTER_TAGS = [...db.MUSCLE_TAGS, ...db.EQUIPMENT_TAGS];
+
 export default function PickExerciseScreen() {
   const { workoutId, gymId } = useLocalSearchParams<{ workoutId: string; gymId: string }>();
   const router = useRouter();
   const [exercises, setExercises] = useState<any[]>([]);
   const [search, setSearch] = useState('');
+  const [activeTags, setActiveTags] = useState<string[]>([]);
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState('');
 
   const load = useCallback(async () => {
-    const data = await db.getExercises(search || undefined);
+    const data = await db.getExercises(search || undefined, activeTags.length > 0 ? activeTags : undefined);
     setExercises(data);
-  }, [search]);
+  }, [search, activeTags]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  const toggleTag = (tag: string) => {
+    setActiveTags(prev =>
+      prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
+    );
+  };
 
   const handlePick = async (exerciseId: number) => {
     const existing = await db.getWorkoutExercises(Number(workoutId));
     const weId = await db.addWorkoutExercise(Number(workoutId), exerciseId, existing.length);
-    const lastData = await db.getLastWorkoutDataForExercise(exerciseId);
+    const workout = await db.getWorkout(Number(workoutId));
+    const lastData = await db.getLastWorkoutDataForExercise(exerciseId, workout?.template_id);
     if (lastData) {
       if (lastData.note) {
         await db.updateWorkoutExerciseNote(weId, lastData.note);
@@ -66,7 +77,32 @@ export default function PickExerciseScreen() {
           onChangeText={setSearch}
           autoFocus
         />
+        {search ? (
+          <TouchableOpacity onPress={() => setSearch('')}>
+            <Ionicons name="close-circle" size={18} color={Colors.textLight} />
+          </TouchableOpacity>
+        ) : null}
       </View>
+
+      <FlatList
+        data={ALL_FILTER_TAGS}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        keyExtractor={(item) => item}
+        contentContainerStyle={styles.tagScroll}
+        style={styles.tagList}
+        renderItem={({ item: tag }) => (
+          <TouchableOpacity
+            style={[styles.filterTag, activeTags.includes(tag) && styles.filterTagActive]}
+            onPress={() => toggleTag(tag)}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.filterTagText, activeTags.includes(tag) && styles.filterTagTextActive]}>
+              {tag}
+            </Text>
+          </TouchableOpacity>
+        )}
+      />
 
       <FlatList
         data={exercises}
@@ -75,7 +111,7 @@ export default function PickExerciseScreen() {
         ListEmptyComponent={
           <View style={styles.empty}>
             <Text style={styles.emptyText}>
-              {search ? 'No exercises found' : 'No exercises yet'}
+              {search || activeTags.length > 0 ? 'No exercises found' : 'No exercises yet'}
             </Text>
           </View>
         }
@@ -84,7 +120,15 @@ export default function PickExerciseScreen() {
             <Ionicons name="add-circle" size={22} color={Colors.success} />
             <View style={styles.cardContent}>
               <Text style={styles.cardTitle}>{item.name}</Text>
-              {item.details ? (
+              {item.tags ? (
+                <View style={styles.tagPills}>
+                  {item.tags.split(',').map((t: string) => (
+                    <View key={t} style={styles.pill}>
+                      <Text style={styles.pillText}>{t}</Text>
+                    </View>
+                  ))}
+                </View>
+              ) : item.details ? (
                 <Text style={styles.cardSubtitle} numberOfLines={1}>{item.details}</Text>
               ) : null}
             </View>
@@ -134,7 +178,27 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
   },
   searchInput: { flex: 1, paddingVertical: 12, fontSize: 16, color: Colors.text },
-  list: { paddingHorizontal: 20, paddingTop: 8 },
+  tagList: { flexGrow: 0 },
+  tagScroll: { paddingHorizontal: 20, paddingVertical: 8, gap: 8, flexDirection: 'row', alignItems: 'center' },
+  filterTag: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 20,
+    marginBottom: 5,
+    borderWidth: 1,
+    height: 30,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  filterTagActive: {
+    backgroundColor: Colors.primary + '20',
+    borderColor: Colors.primary,
+  },
+  filterTagText: { fontSize: 13, color: Colors.textSecondary, textTransform: 'capitalize' },
+  filterTagTextActive: { color: Colors.primary, fontWeight: '600' },
+  list: { paddingHorizontal: 20, paddingTop: 4 },
   card: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -149,6 +213,14 @@ const styles = StyleSheet.create({
   cardContent: { flex: 1 },
   cardTitle: { fontSize: 16, fontWeight: '600', color: Colors.text },
   cardSubtitle: { fontSize: 13, color: Colors.textSecondary, marginTop: 2 },
+  tagPills: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 4 },
+  pill: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    backgroundColor: Colors.primary + '15',
+  },
+  pillText: { fontSize: 11, color: Colors.primary, textTransform: 'capitalize' },
   empty: { alignItems: 'center', marginTop: 40 },
   emptyText: { fontSize: 15, color: Colors.textSecondary },
   createBar: {
