@@ -9,12 +9,14 @@ export function useActiveWorkout(workoutId: number, gymId: number) {
   const [workoutName, setWorkoutName] = useState('');
   const [exercises, setExercises] = useState<WorkoutExercise[]>([]);
   const [startTime, setStartTime] = useState<Date | null>(null);
+  const [templateId, setTemplateId] = useState<number | null>(null);
 
   const loadWorkout = useCallback(async () => {
     const workout = await db.getWorkout(workoutId);
     if (!workout) return;
     setWorkoutName(workout.name);
     setStartTime(new Date(workout.started_at + 'Z'));
+    setTemplateId(workout.template_id ?? null);
 
     const exs = await db.getWorkoutExercises(workoutId);
     const withSets: WorkoutExercise[] = [];
@@ -89,7 +91,11 @@ export function useActiveWorkout(workoutId: number, gymId: number) {
         text: 'Remove',
         style: 'destructive',
         onPress: async () => {
+          const ex = exercises.find((e) => e.id === weId);
           await db.deleteWorkoutExercise(weId);
+          if (templateId && ex) {
+            await db.removeTemplateExercise(templateId, ex.exercise_id);
+          }
           setExercises((prev) => prev.filter((e) => e.id !== weId));
         },
       },
@@ -141,6 +147,14 @@ export function useActiveWorkout(workoutId: number, gymId: number) {
               await db.addTemplateExercise(templateId, ex.exercise_id, ex.sort_order);
             }
             await db.setWorkoutTemplate(workoutId, templateId);
+          } else if (workout && workout.template_id) {
+            const existing = await db.getTemplateExercises(workout.template_id);
+            const existingIds = new Set(existing.map((e) => e.exercise_id));
+            for (const ex of exercises) {
+              if (!existingIds.has(ex.exercise_id)) {
+                await db.addTemplateExercise(workout.template_id, ex.exercise_id, ex.sort_order);
+              }
+            }
           }
           router.replace(`/gym/${gymId}/workout/summary/${workoutId}`);
         },

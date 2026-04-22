@@ -131,6 +131,12 @@ export async function deleteWorkoutTemplate(id: number) {
   db.delete(workoutTemplates).where(eq(workoutTemplates.id, id)).run();
 }
 
+export async function removeTemplateExercise(templateId: number, exerciseId: number) {
+  db.delete(templateExercises)
+    .where(and(eq(templateExercises.template_id, templateId), eq(templateExercises.exercise_id, exerciseId)))
+    .run();
+}
+
 // --- Workouts ---
 
 export async function startWorkout(name: string, gymId: number, templateId?: number) {
@@ -177,8 +183,8 @@ export async function getWorkoutHistory(gymId?: number) {
       started_at: workouts.started_at,
       finished_at: workouts.finished_at,
       duration_seconds: workouts.duration_seconds,
-      exercise_count: sql<number>`(SELECT COUNT(*) FROM workout_exercises we WHERE we.workout_id = ${workouts.id})`,
-      total_sets: sql<number>`(SELECT COUNT(*) FROM workout_sets ws JOIN workout_exercises we ON ws.workout_exercise_id = we.id WHERE we.workout_id = ${workouts.id})`,
+      exercise_count: sql<number>`(SELECT COUNT(*) FROM workout_exercises we WHERE we.workout_id = ${workouts.id} AND we.is_completed = 1)`,
+      total_sets: sql<number>`(SELECT COUNT(*) FROM workout_sets ws JOIN workout_exercises we ON ws.workout_exercise_id = we.id WHERE we.workout_id = ${workouts.id} AND we.is_completed = 1)`,
     })
     .from(workouts)
     .innerJoin(gyms, eq(workouts.gym_id, gyms.id));

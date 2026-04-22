@@ -1,4 +1,4 @@
-import { View, ScrollView, TouchableOpacity, Text, StyleSheet } from 'react-native';
+import { ScrollView, KeyboardAvoidingView, Platform, TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { useLocalSearchParams, Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../../../src/constants/colors';
@@ -29,12 +29,12 @@ export default function ActiveWorkoutScreen() {
   const elapsed = useWorkoutTimer(startTime);
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <Stack.Screen options={{ title: workoutName, headerBackVisible: false }} />
 
       <WorkoutTimer elapsed={elapsed} />
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         {exercises.map((ex) => (
           <ExerciseCard
             key={ex.id}
@@ -58,7 +58,7 @@ export default function ActiveWorkoutScreen() {
         <Ionicons name="checkmark-done" size={20} color={Colors.background} />
         <Text style={styles.finishBtnText}>Finish Workout</Text>
       </TouchableOpacity>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
