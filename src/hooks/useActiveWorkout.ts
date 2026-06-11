@@ -1,15 +1,19 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert } from 'react-native';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { useRouter, useFocusEffect, useNavigation } from 'expo-router';
 import * as db from '../db/database';
 import { WorkoutExercise } from '../types/workout';
 
 export function useActiveWorkout(workoutId: number, gymId: number) {
   const router = useRouter();
+  const navigation = useNavigation();
   const [workoutName, setWorkoutName] = useState('');
   const [exercises, setExercises] = useState<WorkoutExercise[]>([]);
   const [startTime, setStartTime] = useState<Date | null>(null);
   const [templateId, setTemplateId] = useState<number | null>(null);
+  // Set to true right before an intentional navigation (finish / discard)
+  // so the back-guard below lets that navigation through without prompting.
+  const leavingRef = useRef(false);
 
   const loadWorkout = useCallback(async () => {
     const workout = await db.getWorkout(workoutId);
@@ -29,8 +33,13 @@ export function useActiveWorkout(workoutId: number, gymId: number) {
 
   useFocusEffect(useCallback(() => { loadWorkout(); }, [loadWorkout]));
 
+  // Mirror the latest exercises into a ref so the back-guard listener (which is
+  // registered once) can flush the current values rather than a stale closure.
+  const exercisesRef = useRef(exercises);
+  exercisesRef.current = exercises;
+
   const flushUnsavedData = async () => {
-    for (const ex of exercises) {
+    for (const ex of exercisesRef.current) {
       for (const set of ex.sets) {
         await db.updateWorkoutSet(set.id, set.kg ?? undefined, set.reps ?? undefined);
       }
@@ -39,6 +48,33 @@ export function useActiveWorkout(workoutId: number, gymId: number) {
       }
     }
   };
+
+  // Block accidental back navigation (Android hardware back, iOS swipe-back,
+  // header back) out of an in-progress workout. Intentional exits set
+  // leavingRef first so they pass through untouched.
+  useEffect(() => {
+    const unsubscribe = (navigation as any).addListener('beforeRemove', (e: any) => {
+      if (leavingRef.current) return;
+      e.preventDefault();
+      Alert.alert(
+        'Leave workout?',
+        "This workout is still in progress. It won't be saved to your history until you tap Finish.",
+        [
+          { text: 'Stay', style: 'cancel' },
+          {
+            text: 'Leave',
+            style: 'destructive',
+            onPress: async () => {
+              await flushUnsavedData();
+              leavingRef.current = true;
+              navigation.dispatch(e.data.action);
+            },
+          },
+        ]
+      );
+    });
+    return unsubscribe;
+  }, [navigation]);
 
   const handleAddExercise = async () => {
     await flushUnsavedData();
@@ -132,6 +168,7 @@ export function useActiveWorkout(workoutId: number, gymId: number) {
         style: 'destructive',
         onPress: async () => {
           await db.deleteWorkout(workoutId);
+          leavingRef.current = true;
           router.dismissTo(`/gym/${gymId}`);
         },
       },
@@ -156,6 +193,7 @@ export function useActiveWorkout(workoutId: number, gymId: number) {
               }
             }
           }
+          leavingRef.current = true;
           router.replace(`/gym/${gymId}/workout/summary/${workoutId}`);
         },
       },
