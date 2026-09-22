@@ -55,6 +55,7 @@ export default function RootLayout() {
         <Stack.Screen name="exercises/[exerciseId]" options={{ title: 'Exercise Details' }} />
         <Stack.Screen name="exercises/form" options={{ title: 'Exercise' }} />
         <Stack.Screen name="exercises/pick" options={{ title: 'Pick Exercise', presentation: 'modal' }} />
+        <Stack.Screen name="backup" options={{ title: 'Backup & Restore' }} />
       </Stack>
     </>
   );
