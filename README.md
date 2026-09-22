@@ -212,6 +212,17 @@ Outputs:
 
 The **Android phone + watch build** GitHub Actions workflow builds both APKs and uploads them as the `gymbuddy-apks` artifact.
 
+If you install the phone app from EAS, the watch app has to be signed with the same EAS keystore:
+
+1. Run `eas credentials` → Android → your build profile → **Download credentials** to get the `.jks` file, its password, the key alias and the key password.
+2. Add these GitHub repository secrets (Settings → Secrets and variables → Actions):
+   - `ANDROID_KEYSTORE_BASE64`: the output of `base64 -w0 your.jks`
+   - `ANDROID_KEYSTORE_PASSWORD`
+   - `ANDROID_KEY_ALIAS`
+   - `ANDROID_KEY_PASSWORD`
+
+When these secrets are set, the workflow signs the watch APK with that key. The phone APK from that workflow is still debug-signed, so keep installing the phone app from EAS.
+
 ### Install on a Galaxy Watch
 
 1. On the watch, go to Settings → About watch → Software → tap *Software version* 5 times to turn on Developer options.

@@ -45,9 +45,27 @@ jobs:
         working-directory: android
         run: ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a
 
+      # The watch app must be signed with the same key as the installed phone app.
+      # If the EAS keystore secrets are set, use them (matches EAS-built phone APKs);
+      # otherwise fall back to android/app/debug.keystore (matches the phone APK above).
       - name: Build watch APK
         working-directory: wear
-        run: ./gradlew assembleRelease
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+            ./gradlew assembleRelease \
+              -PgymbuddyKeystore="$RUNNER_TEMP/release.jks" \
+              -PgymbuddyKeystorePassword="$KEYSTORE_PASSWORD" \
+              -PgymbuddyKeyAlias="$KEY_ALIAS" \
+              -PgymbuddyKeyPassword="$KEY_PASSWORD"
+          else
+            ./gradlew assembleRelease
+          fi
 
       - uses: actions/upload-artifact@v4
         with:
