@@ -1,0 +1,57 @@
+name: Android phone + watch build
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'app/**'
+      - 'src/**'
+      - 'modules/**'
+      - 'wear/**'
+      - 'app.json'
+      - 'package*.json'
+      - '.github/workflows/android-build.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Generate native Android project
+        run: npx expo prebuild --platform android --no-install
+
+      # Release variant embeds the JS bundle, so no Metro server is needed on the phone.
+      # Both apps are signed with android/app/debug.keystore so the Data Layer pairs them.
+      - name: Build phone APK
+        working-directory: android
+        run: ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a
+
+      - name: Build watch APK
+        working-directory: wear
+        run: ./gradlew assembleRelease
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gymbuddy-apks
+          path: |
+            android/app/build/outputs/apk/release/app-release.apk
+            wear/app/build/outputs/apk/release/app-release.apk

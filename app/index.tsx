@@ -8,6 +8,7 @@ import {
   TextInput,
   Alert,
   Pressable,
+  Platform,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -69,13 +70,21 @@ export default function HomeScreen() {
 
       <View style={styles.header}>
         <Text style={styles.sectionTitle}>Your Gyms</Text>
-        <TouchableOpacity
-          style={styles.headerBtn}
-          onPress={() => router.navigate('/exercises')}
-        >
-          <Ionicons name="barbell-outline" size={18} color={Colors.primary} />
-          <Text style={styles.headerBtnText}>Exercises</Text>
-        </TouchableOpacity>
+        <View style={styles.headerBtns}>
+          {Platform.OS === 'android' && (
+            <TouchableOpacity style={styles.headerBtn} onPress={() => router.navigate('/watch')}>
+              <Ionicons name="watch-outline" size={18} color={Colors.primary} />
+              <Text style={styles.headerBtnText}>Watch</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            style={styles.headerBtn}
+            onPress={() => router.navigate('/exercises')}
+          >
+            <Ionicons name="barbell-outline" size={18} color={Colors.primary} />
+            <Text style={styles.headerBtnText}>Exercises</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {gyms.length === 0 && !showForm && (
@@ -176,6 +185,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: Colors.text,
   },
+  headerBtns: { flexDirection: 'row', gap: 8 },
   headerBtn: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -190,6 +190,42 @@ Defined in `eas.json`:
 
 ---
 
+## Galaxy Watch Companion (Wear OS)
+
+`wear/` holds a native Wear OS app (Kotlin + Compose for Wear OS) that talks to the phone app over Bluetooth using the Wear OS Data Layer `MessageClient`. The phone side of that link is the local Expo module in `modules/wear-bridge`, and you can test it from the **Watch** screen on Android.
+
+- Messages are UTF-8 JSON on the path `/gymbuddy/msg`: `{ "type": "ping" | "pong" | "text" | "set_done", "text"?: string, "ts": number }`.
+- A `ping` from either side gets an automatic `pong` back.
+- The Data Layer only connects the two apps if **both use the package `com.gymbuddy.app` and are signed with the same key**. By default the watch build signs with `android/app/debug.keystore`, which `npx expo prebuild` creates. To use any other key (EAS, Play), pass `-PgymbuddyKeystore=... -PgymbuddyKeystorePassword=... -PgymbuddyKeyAlias=... -PgymbuddyKeyPassword=...` to the watch build.
+
+### Build
+
+```bash
+npx expo prebuild -p android          # generates android/ (and the shared debug keystore)
+cd android && ./gradlew assembleRelease && cd ..
+cd wear && ./gradlew assembleRelease && cd ..
+```
+
+Outputs:
+- `android/app/build/outputs/apk/release/app-release.apk` (phone)
+- `wear/app/build/outputs/apk/release/app-release.apk` (watch)
+
+The **Android phone + watch build** GitHub Actions workflow builds both APKs and uploads them as the `gymbuddy-apks` artifact.
+
+### Install on a Galaxy Watch
+
+1. On the watch, go to Settings → About watch → Software → tap *Software version* 5 times to turn on Developer options.
+2. In Developer options, turn on *ADB debugging* and *Wireless debugging*, then tap *Pair new device*.
+3. From a computer on the same Wi-Fi network:
+   ```bash
+   adb pair <watch-ip>:<pair-port>      # enter the pairing code shown on the watch
+   adb connect <watch-ip>:<port>
+   adb -s <watch-ip>:<port> install wear/app/build/outputs/apk/release/app-release.apk
+   ```
+4. Install the phone APK on the phone that the watch is paired with (`adb -s <phone> install ...`).
+
+---
+
 ## Linting
 
 ```bash
