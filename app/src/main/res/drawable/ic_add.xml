@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ionicons "add" from @expo/vector-icons@15.1.1 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="512"
+    android:viewportHeight="512">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M248 99Q248 99 248 99Q253 95 259.5 96.5Q266 98 270 104Q270 104 272 107V173V240H338H404L408 242Q416 247 416 256Q416 265 408 270Q408 270 405 272H339H272V339V405L270 408Q265 416 256 416Q247 416 242 408Q242 408 240 405V339V272H173H107L104 270Q96 265 96 256Q96 247 103 243Q103 243 107 240H173H240V173V107L242 104Q244 101 248 99Z" />
+</vector>

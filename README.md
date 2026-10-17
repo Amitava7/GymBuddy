@@ -1,230 +1,143 @@
 # GymBuddy
 
-A personal gym tracking app built with React Native and Expo. Built because existing apps on the market were missing key features.
+A personal gym tracker for one phone. Track workouts across multiple gyms,
+manage exercises, and log sets with weight and reps, all stored on the device.
 
-Track workouts across multiple gyms, manage exercises, and log sets with weight and reps — all stored locally on-device via SQLite.
-
----
+This is a rewrite of the React Native / Expo app as a plain Android app in Java
+with **no libraries at all**: no React Native, no Hermes, no AndroidX, no
+Kotlin runtime. The Expo APK was over 100 MB; this one is around 130 KB. The
+screens, the colours, the buttons and the backup file are the same as before.
+The APK is produced by GitHub Actions; there is nothing to install locally.
 
 ## Features
 
-- Manage multiple gyms
-- Create and organize custom exercises
-- Build reusable workout templates
-- Log workout sessions with sets, weight (kg), and reps
-- View workout history and summaries
-- Export all data to a JSON backup and import it back (merge or replace)
-- Dark theme UI
-- Fully offline — no account needed
+- Manage multiple gyms (long-press a gym to delete it)
+- Create and organise exercises, filter by muscle group and equipment, search
+- Saved workouts per gym: tap one to start it with last time's note and sets
+  filled in; a workout started from scratch is saved when you finish it
+- Log sets with kg and reps, notes per exercise, tick exercises off
+- A running clock, Finish / Cancel Workout, and a summary with duration,
+  exercises, sets and volume
+- History per gym, and per exercise: personal records, a volume-per-session
+  chart and every session
+- Export everything to a JSON backup and import it back (merge or replace)
+- Dark theme, fully offline, no account, no permissions
 
----
+## Moving from the Expo app
 
-## Tech Stack
+1. In the old app: Home → the ⇅ button → **Export Data**, and keep the file
+   somewhere off the phone's app storage (Drive, mail, Downloads).
+2. Uninstall the old app.
+3. Install the new APK.
+4. In the new app: Home → ⇅ → **Import Data**, pick the file, choose
+   **Replace**. You can also just open the `.json` file from a file manager and
+   pick GymBuddy.
 
-| Layer | Tech |
-|---|---|
-| Framework | React Native + Expo (SDK 55) |
-| Language | TypeScript |
-| Routing | Expo Router (file-based) |
-| Database | SQLite via `expo-sqlite` |
-| Architecture | New Architecture enabled |
+The backup format is the old one, version 1, unchanged: a file exported by
+either app imports into the other, and importing a file with *Replace* and
+exporting it again gives back the same bytes. The database is the same schema
+in the same place (`files/SQLite/gymbuddy.db`), so if Android ever accepts the
+new APK as an update of an old CI build (same signing key) the data simply
+stays.
 
----
+Two small behaviour changes, both about not losing data: sets and notes are
+saved as you type them rather than when you add an exercise, tick one off or
+finish, and a double tap on a saved workout no longer starts it twice.
 
-## Prerequisites
+## Getting the APK
 
-- [Node.js](https://nodejs.org/) >= 18
-- [Expo CLI](https://docs.expo.dev/get-started/installation/) (`npm install -g expo-cli`)
-- [EAS CLI](https://docs.expo.dev/eas/cli/) >= 18.3.0 (`npm install -g eas-cli`)
-- For Android: Android Studio + Android SDK
-- For iOS: macOS with Xcode installed
+Every push builds one. Open the **Actions** tab, pick the latest *Build APK*
+run and download the `gymbuddy-apk` artifact. Pushing a tag like `v2.0` also
+publishes a GitHub release with the APK attached.
 
----
+**Signing.** Without secrets the APK is signed with `app/debug.keystore`, the
+stock React Native debug key that the old Expo CI build used. It is public, but
+it is the same on every run, so a new build installs over the previous one and
+keeps your data. To use a private key instead, add four repository secrets:
+`ANDROID_KEYSTORE_BASE64` (`base64 -w0 your.jks`), `ANDROID_KEY_ALIAS`,
+`ANDROID_KEY_PASSWORD` and `ANDROID_KEYSTORE_PASSWORD`. Changing key later
+means one more export, uninstall, install, import.
 
-## Getting Started
+Target device is a Galaxy S24 Ultra, so `minSdk` is 34 and there is no
+compatibility code for anything older.
 
-### Install dependencies
+## Why it is small
 
-```bash
-npm install
-```
+| what | how |
+| --- | --- |
+| No dependencies | Framework classes only. SQLite, JSON, dialogs and the share sheet all come with Android. |
+| No icon font | The 27 Ionicons the screens use are vector drawables cut from the same font file the old app shipped, so they look identical without its 390 KB. |
+| No XML layouts | Screens are built in code from the React Native styles: same sizes, colours and weights. |
+| One launcher bitmap | The old icon, scaled once to 432 px WebP. |
+| R8 + one locale | Minified and shrunk, English only, no dependency metadata block. |
 
-### Start the dev server
+CI fails the build if the APK ever passes 1 MB.
 
-```bash
-npm start
-```
+## What CI does
 
-> Note: React Native DevTools are disabled by default. Remove `REACT_NATIVE_DEVTOOLS_DISABLED=1` from the start script in `package.json` to re-enable them.
+1. **Unit tests** — Robolectric runs the real SQLite code on the JVM: the
+   schema and seed, replace and merge imports, export, the byte-for-byte
+   round trip, the error messages, the queries behind the screens, the date
+   formats, and every screen opened on top of an imported backup. Screenshots
+   of each screen are uploaded with the test report.
+2. **Build release APK** — assembles, signs, prints a size breakdown in the job
+   summary and fails past the size budget.
+3. **Use it on an emulator** — installs the APK on Android 14, checks the fresh
+   install, imports `app/src/test/resources/sample-backup.json` through the
+   Import Data dialogs, exports it again and compares, runs a saved workout and
+   a new one with a picked exercise to the summary, opens the exercise screens
+   and the delete prompt, checks the screen really is in the app's colours,
+   and fails on any crash.
 
----
-
-## Running on Device / Emulator
-
-### Android
-
-```bash
-npm run android
-```
-
-### iOS
-
-```bash
-npm run ios
-```
-
-### Web (limited support)
-
-```bash
-npm run web
-```
-
----
-
-## Building Locally
-
-### Android APK (debug)
-
-```bash
-npx expo run:android --variant debug
-```
-
-### Android APK (release)
-
-First, ensure you have a keystore configured in `android/app/build.gradle`, then:
+To run the unit tests against a real export locally:
 
 ```bash
-cd android
-./gradlew assembleRelease
+GB_BACKUP=/path/to/gymbuddy-backup.json GB_SHOTS=/tmp/shots ./gradlew testDebugUnitTest
 ```
 
-Output: `android/app/build/outputs/apk/release/app-release.apk`
+## Layout
 
-### Android AAB (release) — for Play Store
+```
+app/src/main/java/com/gymbuddy/app/
+  Db.java                  the schema, every query, the 68 seeded exercises
+  Backup.java              export, import (replace / merge), validation
+  Json.java                writes JSON the way JSON.stringify(x, null, 2) does
+  BackupProvider.java      hands the exported file to the share sheet
+  Ui.java  Flow.java       colours, view factories, wrapping rows
+  Fmt.java                 dates, durations and numbers as the old screens showed them
+  Screen.java              header, insets, overlays, alerts, list pieces
+  MainActivity             Home: gyms
+  GymActivity              a gym: new workout, history, saved workouts
+  NewWorkoutActivity       name a workout
+  WorkoutActivity          the workout in progress
+  PickExerciseActivity     add an exercise to it
+  SummaryActivity          Workout Complete
+  HistoryActivity          finished workouts at a gym
+  ExercisesActivity        all exercises
+  ExerciseActivity         records and trends for one
+  ExerciseFormActivity     new / edit exercise
+  BackupActivity           Backup & Restore
+tools/
+  build_icons.py           cuts the icons out of the Ionicons font, scales the launcher icon
+  make_sample_backup.py    writes the sample backup the tests import
+  smoke_test.sh            drives the APK on an emulator
+  screen_colors.py         tells the smoke test which theme colours are on screen
+```
+
+## Building locally
+
+Needs JDK 17 (21 for the unit tests) and an Android SDK with platform 35:
 
 ```bash
-cd android
-./gradlew bundleRelease
+./gradlew assembleRelease     # add -PgbStoreFile=... to sign with your own key
 ```
 
-Output: `android/app/build/outputs/bundle/release/app-release.aab`
-
----
-
-## Building with EAS (Recommended)
-
-[EAS Build](https://docs.expo.dev/build/introduction/) handles cloud builds without needing local Android/iOS toolchains.
-
-### Login to Expo
-
-```bash
-eas login
-```
-
-### Configure EAS (first time only)
-
-```bash
-eas build:configure
-```
-
-### Development build (internal testing)
-
-```bash
-# Android
-eas build --platform android --profile development
-
-# iOS
-eas build --platform ios --profile development
-```
-
-### Preview build (internal distribution)
-
-```bash
-# Android
-eas build --platform android --profile preview
-
-# iOS
-eas build --platform ios --profile preview
-```
-
-### Production build
-
-#### Android AAB — for Google Play Store
-
-```bash
-eas build --platform android --profile production
-```
-
-#### iOS IPA — for Apple App Store
-
-```bash
-eas build --platform ios --profile production
-```
-
-#### Both platforms at once
-
-```bash
-eas build --platform all --profile production
-```
-
-### Submit to stores
-
-```bash
-# Google Play Store
-eas submit --platform android
-
-# Apple App Store
-eas submit --platform ios
-```
-
----
-
-## EAS Build Profiles
-
-Defined in `eas.json`:
-
-| Profile | Distribution | Use Case |
-|---|---|---|
-| `development` | Internal | Local dev with dev client |
-| `preview` | Internal | QA / internal testing |
-| `production` | Store | Play Store / App Store release |
-
----
-
-## Linting
-
-```bash
-npm run lint
-```
-
----
-
-## Project Structure
-
-```
-GymBuddy/
-├── app/                        # Expo Router screens (file-based routing)
-│   ├── _layout.tsx             # Root layout & navigation
-│   ├── index.tsx               # Home screen (gym list)
-│   ├── exercises/              # Exercise management screens
-│   └── gym/[gymId]/            # Per-gym screens & workouts
-├── src/
-│   ├── components/             # Shared UI components
-│   ├── constants/colors.ts     # Color theme
-│   └── db/database.ts          # SQLite schema & queries
-├── app.json                    # Expo config
-└── eas.json                    # EAS build profiles
-```
-
----
-
-## App Info
+## App info
 
 | Field | Value |
-|---|---|
-| App Name | GymBuddy |
-| Version | 1.0.0 |
-| Android Package | `com.gymbuddy.app` |
-| iOS Bundle ID | `com.gymbuddy.app` |
-| Minimum iOS | 15.1 |
+| --- | --- |
+| App name | GymBuddy |
+| Version | 2.0 |
+| Android package | `com.gymbuddy.app` |
+| Minimum Android | 14 (API 34) |
 | Orientation | Portrait |

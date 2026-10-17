@@ -1,0 +1,174 @@
+name: Build APK
+
+on:
+  push:
+    branches: ['**']
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Robolectric's Android 15 runtime needs Java 21.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-35 build-tools;35.0.0'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # The real SQLite schema, import (replace and merge), export, and every
+      # screen opened on top of an imported backup, on the JVM.
+      - name: Test
+        env:
+          GB_SHOTS: ${{ github.workspace }}/jvm-shots
+        run: ./gradlew --no-daemon testDebugUnitTest
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: unit-test-report
+          path: |
+            app/build/reports/tests/
+            jvm-shots/
+          if-no-files-found: warn
+
+  build:
+    name: Build release APK
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-35 build-tools;35.0.0'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # With the ANDROID_KEYSTORE_* secrets set (the ones the Expo build used)
+      # the APK is signed with that key. Without them it is signed with the
+      # React Native debug key in app/debug.keystore, which is the same on
+      # every run, so each build installs over the last one and keeps the data.
+      - name: Prepare signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -n "${KEYSTORE_BASE64:-}" ]; then
+            KS="$RUNNER_TEMP/gymbuddy.jks"
+            echo "$KEYSTORE_BASE64" | base64 -d > "$KS"
+            echo "::add-mask::$STORE_PASSWORD"
+            echo "::add-mask::$KEY_PASSWORD"
+            {
+              echo "SIGN_ARGS<<EOF"
+              echo "-PgbStoreFile=$KS -PgbStorePassword=$STORE_PASSWORD -PgbKeyAlias=$KEY_ALIAS -PgbKeyPassword=$KEY_PASSWORD"
+              echo "EOF"
+            } >> "$GITHUB_ENV"
+            echo "Signing with the keystore from repository secrets."
+          else
+            echo "SIGN_ARGS=" >> "$GITHUB_ENV"
+            echo "No ANDROID_KEYSTORE_BASE64 secret: signing with app/debug.keystore."
+          fi
+
+      - name: Build
+        run: |
+          # every run counts as a newer version than the one before it
+          ./gradlew --no-daemon assembleRelease -PgbVersionCode=$((100 + GITHUB_RUN_NUMBER)) $SIGN_ARGS
+
+      - name: Report size
+        run: |
+          set -euo pipefail
+          APK=$(find app/build/outputs/apk/release -name '*.apk' | head -1)
+          SIZE=$(stat -c%s "$APK")
+          echo "### APK: $(basename "$APK") - $((SIZE / 1024)) KB" >> "$GITHUB_STEP_SUMMARY"
+          echo '' >> "$GITHUB_STEP_SUMMARY"
+          echo '| entry | size |' >> "$GITHUB_STEP_SUMMARY"
+          echo '| --- | --- |' >> "$GITHUB_STEP_SUMMARY"
+          unzip -l "$APK" | sort -rn | head -8 \
+            | awk '{printf "| %s | %s bytes |\n", $4, $1}' >> "$GITHUB_STEP_SUMMARY"
+          # The Expo build was over 100 MB; the whole point is that this stays tiny.
+          LIMIT=$((1024 * 1024))
+          if [ "$SIZE" -gt "$LIMIT" ]; then
+            echo "APK grew to $SIZE bytes, over the $LIMIT byte budget." >&2
+            exit 1
+          fi
+          echo "APK_PATH=$APK" >> "$GITHUB_ENV"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gymbuddy-apk
+          path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp "$APK_PATH" "GymBuddy-${GITHUB_REF_NAME}.apk"
+          gh release create "${GITHUB_REF_NAME}" "GymBuddy-${GITHUB_REF_NAME}.apk" --generate-notes
+
+  smoke:
+    name: Use it on an emulator
+    runs-on: ubuntu-latest
+    needs: build
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: gymbuddy-apk
+          path: apk
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      # Installs the real APK on an Android 14 emulator, imports a backup in the
+      # old app's format, exports it again, runs two workouts and opens every
+      # screen. The screenshots it takes are uploaded.
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: default
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          script: bash tools/smoke_test.sh
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: screenshots
+          path: shots/
+          if-no-files-found: warn

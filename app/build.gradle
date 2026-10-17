@@ -1,0 +1,105 @@
+plugins {
+    id 'com.android.application'
+}
+
+// Release signing is driven by -P properties so CI can pass a private keystore
+// in without anything secret living in the repository. Without them the APK is
+// signed with debug.keystore: the stock React Native / Expo debug key that the
+// old Expo build was signed with too. It is public, but it is the same on every
+// machine, so each new build installs over the last one and keeps your data.
+def storeFilePath = findProperty('gbStoreFile')
+
+android {
+    namespace 'com.gymbuddy.app'
+    compileSdk 35
+
+    defaultConfig {
+        // Same id as the React Native app, so this replaces it on the phone.
+        applicationId 'com.gymbuddy.app'
+        // The Galaxy S24 Ultra shipped on Android 14. Nothing older is
+        // supported, which keeps the compatibility code out of the APK.
+        minSdk 34
+        targetSdk 35
+        // CI passes a number that grows with every run, so a new APK always
+        // counts as an update of the one already installed.
+        versionCode((findProperty('gbVersionCode') ?: '2') as int)
+        versionName '2.0'
+        resourceConfigurations += ['en']
+    }
+
+    signingConfigs {
+        create('release') {
+            if (storeFilePath) {
+                storeFile file(storeFilePath)
+                storePassword findProperty('gbStorePassword')
+                keyAlias findProperty('gbKeyAlias')
+                keyPassword findProperty('gbKeyPassword')
+            } else {
+                storeFile file('debug.keystore')
+                storePassword 'android'
+                keyAlias 'androiddebugkey'
+                keyPassword 'android'
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'),
+                    'proguard-rules.pro'
+            signingConfig signingConfigs.getByName('release')
+        }
+        debug {
+            applicationIdSuffix '.debug'
+        }
+    }
+
+    // Everything below is about keeping the APK small: no generated
+    // BuildConfig, no resource values we never read, no dependency metadata
+    // block, and no per-density or per-language resource copies.
+    buildFeatures {
+        buildConfig false
+        resValues false
+        shaders false
+        aidl false
+    }
+
+    dependenciesInfo {
+        includeInApk false
+        includeInBundle false
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+        encoding 'UTF-8'
+    }
+
+    testOptions {
+        unitTests {
+            includeAndroidResources = true
+            all {
+                // Lets a local run point the tests at a real backup file:
+                //   GB_BACKUP=/path/to/backup.json ./gradlew testDebugUnitTest
+                systemProperty 'gb.backup', System.getenv('GB_BACKUP') ?: ''
+                systemProperty 'gb.shots', System.getenv('GB_SHOTS') ?: ''
+                maxHeapSize = '2g'
+            }
+        }
+    }
+
+    lint {
+        abortOnError false
+        checkReleaseBuilds false
+    }
+}
+
+// No libraries in the app at all: it is written against the Android framework
+// only. The test-only dependencies below never reach the APK; Robolectric runs
+// the real SQLite code and the screens on the JVM.
+dependencies {
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.robolectric:robolectric:4.14.1'
+}

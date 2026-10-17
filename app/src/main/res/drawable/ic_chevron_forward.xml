@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ionicons "chevron-forward" from @expo/vector-icons@15.1.1 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="512"
+    android:viewportHeight="512">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M179 89Q179 89 179 89Q187 87 195 91Q198 92 273 167Q335 228 343.5 238Q352 248 352 256Q352 264 343.5 274Q335 284 273 345Q213 405 203 414Q193 423 186 424Q177 425 169.5 419Q162 413 161 404Q159 396 163 389Q164 386 229 321Q229 321 294 256L229 191Q164 126 163 123Q159 116 161 108Q163 92 179 89Z" />
+</vector>
