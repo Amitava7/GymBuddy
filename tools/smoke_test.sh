@@ -94,11 +94,13 @@ crashed() {
     fi
 }
 
+# Starts a screen on a task of its own. Without clearing the task, starting
+# MainActivity again only brings back whatever was on top of it.
 open_screen() {  # open_screen <Activity> [am start extras...]
     local name="$1"
     shift
     adb logcat -c
-    adb shell am start -W -n "$PKG/.$name" "$@"
+    adb shell am start -W --activity-clear-task -n "$PKG/.$name" "$@"
     sleep 5
     crashed "$name"
 }
@@ -121,7 +123,7 @@ if [ "$(pct 01-fresh-home BACKGROUND)" -lt 50 ] || [ "$(pct 01-fresh-home PRIMAR
 fi
 open_screen ExercisesActivity
 expect "Ab Rollout" seeded
-expect "Hanging Knee Raise" seeded
+expect "Bulgarian Split Squat" seeded
 shot 02-seeded-exercises
 
 # ---- import a backup -------------------------------------------------------
