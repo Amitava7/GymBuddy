@@ -1,7 +1,9 @@
 package com.gymbuddy.app;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.robolectric.Shadows.shadowOf;
 
@@ -230,6 +232,51 @@ public class ScreensTest {
         shot(s, "07-summary");
     }
 
+    /** Back in the middle of a workout asks first instead of dropping it. */
+    @Test
+    public void backDuringAWorkoutAsksFirst() throws Exception {
+        Db.Gym g = firstGym();
+        Db.Template t = db.getWorkoutTemplates(g.id).get(0);
+        long workoutId = GymActivity.startFromTemplate(db, t);
+        WorkoutActivity w = start(WorkoutActivity.class, "gymId", g.id, "workoutId", workoutId);
+
+        w.onBackPressed();
+        idle();
+        AlertDialog d = dialog("Leave Workout?");
+        assertTrue(d.isShowing());
+        assertEquals("Keep Going", d.getButton(AlertDialog.BUTTON_NEUTRAL).getText().toString());
+        assertEquals("Cancel Workout", d.getButton(AlertDialog.BUTTON_NEGATIVE).getText().toString());
+        assertEquals("Finish", d.getButton(AlertDialog.BUTTON_POSITIVE).getText().toString());
+        assertFalse(w.isFinishing());
+        shot(d.getWindow().getDecorView(), "06b-leave-dialog");
+
+        // Keep Going: still on the workout, nothing lost
+        d.getButton(AlertDialog.BUTTON_NEUTRAL).performClick();
+        idle();
+        assertFalse(w.isFinishing());
+        assertNotNull(db.getWorkout(workoutId));
+        assertNull(db.getWorkout(workoutId).finishedAt);
+
+        // Finish from there goes to the summary like the Finish Workout bar does
+        w.onBackPressed();
+        idle();
+        dialog("Leave Workout?").getButton(AlertDialog.BUTTON_POSITIVE).performClick();
+        idle();
+        assertNotNull(db.getWorkout(workoutId).finishedAt);
+        assertEquals(SummaryActivity.class.getName(), next(w).getComponent().getClassName());
+
+        // Cancel Workout throws it away and goes back to the gym
+        long other = GymActivity.startFromTemplate(db, t);
+        w = start(WorkoutActivity.class, "gymId", g.id, "workoutId", other);
+        w.onBackPressed();
+        idle();
+        dialog("Leave Workout?").getButton(AlertDialog.BUTTON_NEGATIVE).performClick();
+        idle();
+        assertNull(db.getWorkout(other));
+        assertTrue(w.isFinishing());
+        assertEquals(GymActivity.class.getName(), next(w).getComponent().getClassName());
+    }
+
     @Test
     public void newWorkoutAndPickExercise() throws Exception {
         Db.Gym g = firstGym();
@@ -252,6 +299,14 @@ public class ScreensTest {
 
         WorkoutActivity w = startIntent(WorkoutActivity.class, toWorkout);
         assertShows(w, "Arms day", "Bench Press");
+    }
+
+    private static void charts(View v, List<LineChart> out) {
+        if (v instanceof LineChart) out.add((LineChart) v);
+        if (v instanceof ViewGroup) {
+            ViewGroup g = (ViewGroup) v;
+            for (int i = 0; i < g.getChildCount(); i++) charts(g.getChildAt(i), out);
+        }
     }
 
     private static View findList(View v) {
@@ -298,8 +353,38 @@ public class ScreensTest {
             }
         }
         ExerciseActivity d = start(ExerciseActivity.class, "exerciseId", best);
-        assertShows(d, "Personal Records", "Max Weight", "History & Trends", "VOLUME PER SESSION");
+        assertShows(d, "Personal Records", "Max Weight", "History & Trends",
+                "WEIGHT PER SESSION", "REPS PER SESSION", "VOLUME PER SESSION");
+        // one point for every session, on both lines
+        List<LineChart> charts = new ArrayList<LineChart>();
+        charts(d.getWindow().getDecorView(), charts);
+        assertEquals(2, charts.size());
+        int withKg = 0, withReps = 0;
+        for (Db.ExerciseSession s : db.getExerciseHistory(best)) {
+            if (s.maxKg != null) withKg++;
+            if (s.maxReps != null) withReps++;
+        }
+        assertEquals(withKg, charts.get(0).size());
+        assertEquals(withReps, charts.get(1).size());
+        assertTrue(charts.get(0).size() > 1);
         shot(d, "14-exercise-detail");
+        View card = (View) charts.get(0).getParent(), scroll = card;
+        int y = 0;
+        while (!(scroll instanceof android.widget.ScrollView)) {
+            y += scroll.getTop();
+            scroll = (View) scroll.getParent();
+        }
+        scroll.scrollTo(0, y);
+        shot(d, "14b-exercise-trends");
+
+        // a bodyweight exercise logged without weight has no weight line
+        long plank = db.getExercises("Side Plank", null).get(0).id;
+        long w = db.startWorkout("Core", firstGym().id, null);
+        db.addWorkoutSet(db.addWorkoutExercise(w, plank, 0), 1, null, 60.0);
+        db.finishWorkout(w);
+        ExerciseActivity p = start(ExerciseActivity.class, "exerciseId", plank);
+        assertShows(p, "REPS PER SESSION", "60 reps", "first session");
+        assertTrue(!texts(p).contains("WEIGHT PER SESSION"));
 
         ExerciseFormActivity f = start(ExerciseFormActivity.class, "exerciseId", 12L);
         assertShows(f, "Edit Exercise", "EXERCISE NAME", "MUSCLE GROUPS", "EQUIPMENT", "Update Exercise");

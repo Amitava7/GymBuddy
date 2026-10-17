@@ -8,9 +8,13 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
+import java.util.ArrayList;
 import java.util.List;
 
-/** One exercise: its details, personal records, and how the volume has gone. */
+/**
+ * One exercise: its details, personal records, how the weight, reps and volume
+ * have gone, and every session.
+ */
 public final class ExerciseActivity extends Screen {
 
     private long exerciseId;
@@ -81,6 +85,10 @@ public final class ExerciseActivity extends Screen {
             none.setGravity(Gravity.CENTER);
             hist.addView(none, Ui.margins(this, Ui.MATCH, Ui.WRAP, 0, 20, 0, 0));
         } else {
+            View weight = trend("WEIGHT PER SESSION", "heaviest set", history, true);
+            if (weight != null) hist.addView(weight, Ui.margins(this, Ui.MATCH, Ui.WRAP, 0, 0, 0, 16));
+            View reps = trend("REPS PER SESSION", "most reps in a set", history, false);
+            if (reps != null) hist.addView(reps, Ui.margins(this, Ui.MATCH, Ui.WRAP, 0, 0, 0, 16));
             hist.addView(chart(history), Ui.margins(this, Ui.MATCH, Ui.WRAP, 0, 0, 0, 16));
             for (Db.ExerciseSession h : history) hist.addView(sessionCard(h));
         }
@@ -106,6 +114,63 @@ public final class ExerciseActivity extends Screen {
         c.addView(Ui.text(this, value, 20, Ui.TEXT, 800), Ui.margins(this, Ui.WRAP, Ui.WRAP, 0, 4, 0, 0));
         c.addView(Ui.text(this, label, 11, Ui.TEXT_SECONDARY, 400), Ui.margins(this, Ui.WRAP, Ui.WRAP, 0, 2, 0, 0));
         return c;
+    }
+
+    /**
+     * WEIGHT or REPS PER SESSION: every session as a point on a line, oldest on
+     * the left, under the latest value and how far it has moved since the
+     * first. Sessions with no number logged are left out; nothing is shown
+     * when every number is zero (a bodyweight exercise has no weight line).
+     */
+    private View trend(String title, String what, List<Db.ExerciseSession> history, boolean kg) {
+        List<Double> values = new ArrayList<Double>();
+        List<String> dates = new ArrayList<String>();
+        boolean any = false;
+        for (int i = history.size() - 1; i >= 0; i--) {
+            Db.ExerciseSession h = history.get(i);
+            Double v = kg ? h.maxKg : h.maxReps;
+            if (v == null) continue;
+            values.add(v);
+            dates.add(h.workoutDate);
+            any |= v != 0;
+        }
+        if (!any) return null;
+        int n = values.size();
+        double first = values.get(0), last = values.get(n - 1);
+
+        LinearLayout c = Ui.column(this);
+        c.setBackground(Ui.card(this, 14));
+        Ui.pad(c, 16, 16, 16, 16);
+        c.addView(Ui.spaced(Ui.text(this, title, 11, Ui.TEXT_SECONDARY, 700), 1, 11),
+                Ui.margins(this, Ui.WRAP, Ui.WRAP, 0, 0, 0, 6));
+        LinearLayout now = Ui.gap(new LinearLayout(this), 8);   // baseline-aligned
+        now.addView(Ui.text(this, amount(last, kg), 20, Ui.TEXT, 800));
+        now.addView(Ui.text(this, change(first, last, kg, n), 12, Ui.TEXT_SECONDARY, 400));
+        c.addView(now, Ui.margins(this, Ui.WRAP, Ui.WRAP, 0, 0, 0, 12));
+
+        double[] points = new double[n];
+        for (int i = 0; i < n; i++) points[i] = values.get(i);
+        LineChart chart = new LineChart(this, points, Fmt.shortDate(dates.get(0)), Fmt.shortDate(dates.get(n - 1)));
+        chart.setContentDescription(n == 1
+                ? Ui.capitalize(what) + ": " + amount(last, kg) + ", one session"
+                : Ui.capitalize(what) + " over " + n + " sessions, from " + amount(first, kg)
+                        + " to " + amount(last, kg));
+        c.addView(chart, Ui.lp(Ui.MATCH, Ui.dp(this, 150)));
+        return c;
+    }
+
+    /** "62.5 kg", "1 rep", "12 reps". */
+    private static String amount(double v, boolean kg) {
+        return Fmt.num(v) + (kg ? " kg" : v == 1 ? " rep" : " reps");
+    }
+
+    /** "+17.5 kg over 12 sessions", "−2 reps over 5 sessions", "first session". */
+    private static String change(double first, double last, boolean kg, int sessions) {
+        if (sessions == 1) return "first session";
+        double d = Math.round((last - first) * 100) / 100.0;
+        String over = " over " + sessions + " sessions";
+        if (d == 0) return "no change" + over;
+        return (d > 0 ? "+" : "−") + amount(Math.abs(d), kg) + over;
     }
 
     /** VOLUME PER SESSION: the last ten sessions as bars, oldest on the left. */

@@ -1,5 +1,6 @@
 package com.gymbuddy.app;
 
+import android.database.sqlite.SQLiteDatabase;
 import android.graphics.Paint;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
@@ -19,9 +20,7 @@ import android.widget.TextView;
 
 import java.util.ArrayList;
 import java.util.Date;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 /**
  * The workout in progress: a running clock, one card per exercise with its
@@ -31,11 +30,9 @@ import java.util.Set;
 public final class WorkoutActivity extends Screen {
 
     private long workoutId, gymId;
-    private Long templateId;
     private Date startTime;
     private TextView clock;
     private LinearLayout cards;
-    private List<Db.WorkoutExercise> exercises = new ArrayList<Db.WorkoutExercise>();
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable tick = new Runnable() {
         public void run() {
@@ -112,10 +109,8 @@ public final class WorkoutActivity extends Screen {
         if (w == null) return;
         title(w.name);
         startTime = Fmt.utc(w.startedAt);
-        templateId = w.templateId;
-        exercises = db.getWorkoutExercisesWithSets(workoutId);
         cards.removeAllViews();
-        for (Db.WorkoutExercise ex : exercises) cards.addView(card(ex));
+        for (Db.WorkoutExercise ex : db.getWorkoutExercisesWithSets(workoutId)) cards.addView(card(ex));
         handler.removeCallbacks(tick);
         handler.post(tick);
     }
@@ -265,15 +260,12 @@ public final class WorkoutActivity extends Screen {
         }
     }
 
+    /** The saved workout loses it too, but only once this workout is finished. */
     private void confirmRemove(final Db.WorkoutExercise ex, final View card) {
         alert("Remove Exercise", "Remove \"" + ex.name + "\" from this workout?",
                 new String[]{"Cancel", "Remove"}, null, new Runnable() {
                     public void run() {
                         db.deleteWorkoutExercise(ex.id);
-                        if (templateId != null && templateId != 0) {
-                            db.removeTemplateExercise(templateId, ex.exerciseId);
-                        }
-                        exercises.remove(ex);
                         cards.removeView(card);
                     }
                 });
@@ -281,8 +273,25 @@ public final class WorkoutActivity extends Screen {
 
     // --------------------------------------------------------------- finish
 
+    /**
+     * Back used to close the screen and leave the workout behind, unfinished
+     * and out of sight. It asks first now, with the same choices as Finish.
+     */
+    @Override
+    public void onBackPressed() {
+        if (overlayShown()) {
+            super.onBackPressed();
+            return;
+        }
+        confirmEnd("Leave Workout?", "This workout is still in progress.");
+    }
+
     private void confirmFinish() {
-        alert("Finish Workout", "Complete this workout?",
+        confirmEnd("Finish Workout", "Complete this workout?");
+    }
+
+    private void confirmEnd(String title, String message) {
+        alert(title, message,
                 new String[]{"Keep Going", "Cancel Workout", "Finish"},
                 null,
                 new Runnable() {
@@ -298,27 +307,35 @@ public final class WorkoutActivity extends Screen {
                 });
     }
 
+    private void finishWorkout() {
+        complete(db, workoutId);
+        replace(SummaryActivity.class, "gymId", gymId, "workoutId", workoutId);
+    }
+
     /**
      * Ends the workout. A workout started from scratch becomes a saved
-     * workout; one started from a saved workout adds any new exercises to it.
+     * workout; one started from a saved workout passes on the exercises added
+     * to it or removed from it. The sets and notes go forward too, since the
+     * next start copies them from this workout. Workouts finished before it
+     * keep their own, and a cancelled workout changes nothing.
      */
-    private void finishWorkout() {
-        db.finishWorkout(workoutId);
-        Db.Workout w = db.getWorkout(workoutId);
-        if (w != null && w.templateId == null) {
-            long t = db.createWorkoutTemplate(w.name, gymId);
-            for (Db.WorkoutExercise ex : exercises) db.addTemplateExercise(t, ex.exerciseId, ex.sortOrder);
-            db.setWorkoutTemplate(workoutId, t);
-        } else if (w != null) {
-            Set<Long> have = new HashSet<Long>();
-            for (Db.TemplateExercise te : db.getTemplateExercises(w.templateId)) have.add(te.exerciseId);
-            for (Db.WorkoutExercise ex : exercises) {
-                if (!have.contains(ex.exerciseId)) {
-                    db.addTemplateExercise(w.templateId, ex.exerciseId, ex.sortOrder);
-                }
+    static void complete(Db db, long workoutId) {
+        SQLiteDatabase sql = db.getWritableDatabase();
+        sql.beginTransaction();
+        try {
+            db.finishWorkout(workoutId);
+            Db.Workout w = db.getWorkout(workoutId);
+            if (w != null) {
+                List<Long> ids = new ArrayList<Long>();
+                for (Db.WorkoutExercise ex : db.getWorkoutExercises(workoutId)) ids.add(ex.exerciseId);
+                long t = w.templateId != null ? w.templateId : db.createWorkoutTemplate(w.name, w.gymId);
+                db.setTemplateExercises(t, ids);
+                if (w.templateId == null) db.setWorkoutTemplate(workoutId, t);
             }
+            sql.setTransactionSuccessful();
+        } finally {
+            sql.endTransaction();
         }
-        replace(SummaryActivity.class, "gymId", gymId, "workoutId", workoutId);
     }
 
     abstract static class Watcher implements TextWatcher {

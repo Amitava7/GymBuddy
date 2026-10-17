@@ -2,10 +2,11 @@
 # Installs the release APK on a running emulator and uses it the way a person
 # would: fresh install, import a backup through the Import Data dialogs, export
 # it again and check nothing changed, then a saved workout and a new one end to
-# end, the exercise screens, and the delete prompts. Fails on any crash or on a
-# screen that does not show what it should. Buttons are found by reading the
-# view hierarchy, so this does not depend on the screen size. Screenshots land
-# in shots/ and the workflow uploads them.
+# end, back in the middle of a workout, the exercise screens and their charts,
+# and the delete prompts. Fails on any crash or on a screen that does not show
+# what it should. Buttons are found by reading the view hierarchy, so this does
+# not depend on the screen size. Screenshots land in shots/ and the workflow
+# uploads them.
 set -euo pipefail
 
 APK=$(ls apk/*.apk | head -1)
@@ -107,6 +108,25 @@ open_screen() {  # open_screen <Activity> [am start extras...]
 
 back() {
     adb shell input keyevent KEYCODE_BACK
+    sleep 2
+}
+
+# Closes the keyboard if it is up; it covers buttons and eats the first back.
+no_keyboard() {
+    if adb shell dumpsys input_method | grep -q "mInputShown=true"; then
+        back
+    fi
+}
+
+# A slow half-screen drag, so the page moves about that far and no further.
+swipe() {  # swipe up|down
+    local w h
+    read -r w h < <(adb shell wm size | grep -o '[0-9]*x[0-9]*' | tail -1 | tr x ' ')
+    if [ "$1" = up ]; then
+        adb shell input swipe $((w / 2)) $((h * 3 / 4)) $((w / 2)) $((h / 4)) 800
+    else
+        adb shell input swipe $((w / 2)) $((h / 4)) $((w / 2)) $((h * 3 / 4)) 800
+    fi
     sleep 2
 }
 
@@ -212,6 +232,20 @@ if [ "$(pct 12-workout PRIMARY)" -lt 4 ]; then
 fi
 tap_node 'text="Add Set"'
 crashed add-set
+# back in the middle of a workout asks first, and Keep Going stays on it
+no_keyboard
+back
+expect "Leave Workout?" leave
+expect "This workout is still in progress." leave
+shot 12b-leave-dialog
+tap_node 'text="Keep Going"'
+crashed keep-going
+if ui | grep -qF "Leave Workout?"; then
+    echo "::error::the Leave Workout? dialog is still up after Keep Going"
+    exit 1
+fi
+expect "Finish Workout" kept-going
+expect "Bench Press" kept-going
 tap_node 'text="Finish Workout"'
 expect "Complete this workout?" finish
 shot 13-finish-dialog
@@ -256,14 +290,20 @@ tap_node 'text="Legs"'
 expect "Bench Press" unfiltered
 tap_node 'text="Bench Press"'
 expect "Personal Records" exercise
-expect "VOLUME PER SESSION" exercise
+expect "WEIGHT PER SESSION" exercise
 shot 18-exercise
+# the reps line and the volume bars are further down
+swipe up
+expect "REPS PER SESSION" exercise-trends
+expect "VOLUME PER SESSION" exercise-trends
+shot 18b-exercise-trends
+crashed exercise-trends
+swipe down
+swipe down
 tap_node 'content-desc="Edit exercise"'
 expect "Edit Exercise" edit
 # the name field opens with the keyboard up, and the keyboard covers the button
-if adb shell dumpsys input_method | grep -q "mInputShown=true"; then
-    back
-fi
+no_keyboard
 expect "Update Exercise" edit
 shot 19-edit-exercise
 crashed exercises
