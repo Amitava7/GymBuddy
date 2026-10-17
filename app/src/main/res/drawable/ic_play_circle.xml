@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ionicons "play-circle" from @expo/vector-icons@15.1.1 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="512"
+    android:viewportHeight="512">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M242 49Q312 44 370 82Q387 94 403 110Q453 159 463 232Q464 239 464 256Q464 273 463 280Q453 353 403 403Q353 453 280 463Q273 464 256 464Q239 464 232 463Q159 453 109 403Q59 353 50 281Q40 206 82 142Q110 101 151.5 76.5Q193 52 242 49ZM214 177Q214 177 214 177Q212 176 211 176Q206 176 202 180Q202 180 201 183V256V329L203 332Q208 338 214 335Q218 334 274 300Q330 266 332 264Q341 256 332 248Q330 246 273.5 212Q217 178 214 177Z" />
+</vector>

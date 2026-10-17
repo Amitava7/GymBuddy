@@ -1,47 +1,23 @@
-# Dependencies
-node_modules/
-
-# Expo
-.expo/
-dist/
-web-build/
-expo-env.d.ts
-
-# Native builds (regenerated via `npx expo prebuild`)
-ios/
-android/
+# Gradle / Android build output
+.gradle/
+build/
+local.properties
+*.apk
+*.aab
+*.keystore
 *.jks
-*.p8
-*.p12
-*.key
-*.mobileprovision
-*.orig.*
+# The public React Native debug key, used when no signing secrets are set.
+!app/debug.keystore
 
-# Metro
-.metro-health-check*
+# npm tarball downloaded by tools/build_icons.py
+tools/cache/
+__pycache__/
 
-# Environment variables
-.env
-.env.*
-
-# IDE
-.vscode/
+# IDE / OS
 .idea/
-*.swp
-*.swo
-*~
-
-# OS files
+.vscode/
+*.iml
 .DS_Store
-Thumbs.db
-
-# Debug
-npm-debug.*
-yarn-debug.*
-yarn-error.*
-
-# TypeScript
-*.tsbuildinfo
 
 # Claude Code
 CLAUDE.md
