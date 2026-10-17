@@ -13,6 +13,7 @@ Track workouts across multiple gyms, manage exercises, and log sets with weight 
 - Build reusable workout templates
 - Log workout sessions with sets, weight (kg), and reps
 - View workout history and summaries
+- Export all data to a JSON backup and import it back (merge or replace)
 - Dark theme UI
 - Fully offline — no account needed
 

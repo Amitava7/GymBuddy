@@ -1,0 +1,77 @@
+name: Android phone + watch build
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'app/**'
+      - 'src/**'
+      - 'modules/**'
+      - 'wear/**'
+      - 'app.json'
+      - 'package*.json'
+      - '.github/workflows/android-build.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Generate native Android project
+        run: npx expo prebuild --platform android --no-install
+
+      # Release variant embeds the JS bundle, so no Metro server is needed on the phone.
+      # Both apps are signed with android/app/debug.keystore so the Data Layer pairs them.
+      - name: Build phone APK
+        working-directory: android
+        run: ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a
+
+      # The watch app must be signed with the same key as the installed phone app.
+      # If the EAS keystore secrets are set, use them (matches EAS-built phone APKs);
+      # otherwise fall back to android/app/debug.keystore (matches the phone APK above).
+      - name: Build watch APK
+        if: hashFiles('wear/settings.gradle*') != ''
+        working-directory: wear
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+            ./gradlew assembleRelease \
+              -PgymbuddyKeystore="$RUNNER_TEMP/release.jks" \
+              -PgymbuddyKeystorePassword="$KEYSTORE_PASSWORD" \
+              -PgymbuddyKeyAlias="$KEY_ALIAS" \
+              -PgymbuddyKeyPassword="$KEY_PASSWORD"
+          else
+            ./gradlew assembleRelease
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gymbuddy-apks
+          path: |
+            android/app/build/outputs/apk/release/app-release.apk
+            wear/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error

@@ -69,13 +69,22 @@ export default function HomeScreen() {
 
       <View style={styles.header}>
         <Text style={styles.sectionTitle}>Your Gyms</Text>
-        <TouchableOpacity
-          style={styles.headerBtn}
-          onPress={() => router.navigate('/exercises')}
-        >
-          <Ionicons name="barbell-outline" size={18} color={Colors.primary} />
-          <Text style={styles.headerBtnText}>Exercises</Text>
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={styles.headerBtn}
+            onPress={() => router.navigate('/exercises')}
+          >
+            <Ionicons name="barbell-outline" size={18} color={Colors.primary} />
+            <Text style={styles.headerBtnText}>Exercises</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.headerBtn}
+            onPress={() => router.navigate('/backup')}
+            accessibilityLabel="Backup and restore"
+          >
+            <Ionicons name="swap-vertical-outline" size={18} color={Colors.primary} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {gyms.length === 0 && !showForm && (
@@ -176,6 +185,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: Colors.text,
   },
+  headerActions: { flexDirection: 'row', gap: 8 },
   headerBtn: {
     flexDirection: 'row',
     alignItems: 'center',
