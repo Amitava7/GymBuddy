@@ -260,6 +260,10 @@ expect "VOLUME PER SESSION" exercise
 shot 18-exercise
 tap_node 'content-desc="Edit exercise"'
 expect "Edit Exercise" edit
+# the name field opens with the keyboard up, and the keyboard covers the button
+if adb shell dumpsys input_method | grep -q "mInputShown=true"; then
+    back
+fi
 expect "Update Exercise" edit
 shot 19-edit-exercise
 crashed exercises
