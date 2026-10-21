@@ -8,24 +8,28 @@ import android.os.Handler;
 import android.os.Looper;
 import android.text.Editable;
 import android.text.InputType;
+import android.text.TextUtils;
 import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.View;
 import android.view.accessibility.AccessibilityEvent;
 import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 
 /**
  * The workout in progress: a running clock, one card per exercise with its
  * note and sets, and Finish Workout pinned to the bottom. What you type is
- * saved as you type it.
+ * saved as you type it. Each exercise's chart opens over the workout, and
+ * Reorder in the header moves exercises up and down.
  */
 public final class WorkoutActivity extends Screen {
 
@@ -33,6 +37,7 @@ public final class WorkoutActivity extends Screen {
     private Date startTime;
     private TextView clock;
     private LinearLayout cards;
+    private View reorder;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable tick = new Runnable() {
         public void run() {
@@ -47,6 +52,13 @@ public final class WorkoutActivity extends Screen {
         workoutId = longExtra("workoutId");
         gymId = longExtra("gymId");
         header("", false);
+        reorder = Ui.touch(pill(R.drawable.ic_swap_vertical_outline, "Reorder"), 0.2f, new View.OnClickListener() {
+            public void onClick(View v) {
+                showReorder();
+            }
+        });
+        reorder.setContentDescription("Reorder exercises");
+        headerAction(reorder);
 
         LinearLayout col = Ui.column(this);
         LinearLayout timer = Ui.gap(Ui.row(this), 6);
@@ -111,6 +123,7 @@ public final class WorkoutActivity extends Screen {
         startTime = Fmt.utc(w.startedAt);
         cards.removeAllViews();
         for (Db.WorkoutExercise ex : db.getWorkoutExercisesWithSets(workoutId)) cards.addView(card(ex));
+        reorder.setVisibility(cards.getChildCount() > 1 ? View.VISIBLE : View.GONE);
         handler.removeCallbacks(tick);
         handler.post(tick);
     }
@@ -145,6 +158,13 @@ public final class WorkoutActivity extends Screen {
         });
         head.addView(toggle);
         head.addView(name, Ui.lp(0, Ui.WRAP, 1f));
+        View chart = iconButton(R.drawable.ic_analytics_outline, 22, Ui.PRIMARY, 0.2f, new View.OnClickListener() {
+            public void onClick(View v) {
+                showProgress(ex);
+            }
+        });
+        chart.setContentDescription("Progress for " + ex.name);
+        head.addView(chart);
         head.addView(iconButton(R.drawable.ic_trash_outline, 20, Ui.DANGER, 0.2f, new View.OnClickListener() {
             public void onClick(View v) {
                 confirmRemove(ex, card);
@@ -267,8 +287,124 @@ public final class WorkoutActivity extends Screen {
                     public void run() {
                         db.deleteWorkoutExercise(ex.id);
                         cards.removeView(card);
+                        reorder.setVisibility(cards.getChildCount() > 1 ? View.VISIBLE : View.GONE);
                     }
                 });
+    }
+
+    // ------------------------------------------------------------- pop-ups
+
+    /**
+     * The exercise's weight and reps lines over the workout, with how long the
+     * current weight has lasted, so you can decide whether to go up today.
+     */
+    private void showProgress(final Db.WorkoutExercise ex) {
+        Ui.hideKeyboard(this);
+        List<Db.ExerciseSession> history = db.getExerciseHistory(ex.exerciseId);
+        LinearLayout f = Ui.column(this);
+        f.setBackground(Ui.card(this, 20));
+        Ui.pad(f, 20, 20, 20, 20);
+        LinearLayout head = Ui.gap(Ui.row(this), 12);
+        head.addView(Ui.text(this, ex.name, 20, Ui.TEXT, 700), Ui.lp(0, Ui.WRAP, 1f));
+        View close = iconButton(R.drawable.ic_close, 24, Ui.TEXT_SECONDARY, 0.2f, new View.OnClickListener() {
+            public void onClick(View v) {
+                hideOverlay();
+            }
+        });
+        close.setContentDescription("Close");
+        head.addView(close);
+        f.addView(head, Ui.margins(this, Ui.MATCH, Ui.WRAP, 0, 0, 0, 16));
+
+        View weight = Progress.weight(this, history, 3, false);
+        View reps = Progress.reps(this, history, false);
+        if (weight == null && reps == null) {
+            f.addView(Ui.text(this, history.isEmpty() ? "No finished workouts with this exercise yet."
+                    : "No weight or reps logged for this exercise yet.", 14, Ui.TEXT_SECONDARY, 400));
+        }
+        if (weight != null) f.addView(weight, Ui.margins(this, Ui.MATCH, Ui.WRAP, 0, 0, 0, 24));
+        if (reps != null) f.addView(reps, Ui.lp(Ui.MATCH, Ui.WRAP));
+        if (!history.isEmpty()) {
+            TextView all = Ui.text(this, "All history", 15, Ui.PRIMARY, 600);
+            Ui.pad(all, 0, 12, 0, 4);
+            f.addView(Ui.touch(all, 0.2f, new View.OnClickListener() {
+                public void onClick(View v) {
+                    hideOverlay();
+                    open(ExerciseActivity.class, "exerciseId", ex.exerciseId);
+                }
+            }), Ui.margins(this, Ui.WRAP, Ui.WRAP, 0, 8, 0, 0));
+        }
+        showOverlay(scrolling(f));
+    }
+
+    /** Moves exercises up and down; each move is saved and shows on the cards behind at once. */
+    private void showReorder() {
+        Ui.hideKeyboard(this);
+        LinearLayout f = formCard("Reorder Exercises");
+        LinearLayout rows = Ui.column(this);
+        f.addView(rows, Ui.lp(Ui.MATCH, Ui.WRAP));
+        fillReorder(rows);
+        LinearLayout end = Ui.row(this);
+        end.setGravity(Gravity.END);
+        TextView done = Ui.text(this, "Done", 16, Ui.BACKGROUND, 700);
+        done.setBackground(Ui.box(this, Ui.PRIMARY, 10));
+        Ui.pad(done, 24, 12, 24, 12);
+        end.addView(Ui.touch(done, 0.8f, new View.OnClickListener() {
+            public void onClick(View v) {
+                hideOverlay();
+            }
+        }));
+        f.addView(end, Ui.margins(this, Ui.MATCH, Ui.WRAP, 0, 8, 0, 0));
+        showOverlay(scrolling(f));
+    }
+
+    private void fillReorder(final LinearLayout rows) {
+        final List<Db.WorkoutExercise> list = db.getWorkoutExercises(workoutId);
+        rows.removeAllViews();
+        for (int i = 0; i < list.size(); i++) {
+            LinearLayout row = Ui.gap(Ui.row(this), 4);
+            row.setBackground(Ui.box(this, Ui.BACKGROUND, 12, Ui.BORDER));
+            Ui.pad(row, 14, 4, 4, 4);
+            TextView number = Ui.text(this, String.valueOf(i + 1), 14, Ui.TEXT_SECONDARY, 600);
+            number.setFontFeatureSettings("tnum");
+            row.addView(number, Ui.lp(Ui.dp(this, 22), Ui.WRAP));
+            TextView name = Ui.text(this, list.get(i).name, 15, Ui.TEXT, 600);
+            name.setSingleLine(true);
+            name.setEllipsize(TextUtils.TruncateAt.END);
+            row.addView(name, Ui.lp(0, Ui.WRAP, 1f));
+            row.addView(move(rows, list, i, -1));
+            row.addView(move(rows, list, i, 1));
+            rows.addView(row, Ui.margins(this, Ui.MATCH, Ui.WRAP, 0, 0, 0, 8));
+        }
+    }
+
+    /** An up (-1) or down (1) arrow; greyed out at the top or bottom. */
+    private View move(final LinearLayout rows, final List<Db.WorkoutExercise> list, final int at, final int by) {
+        final boolean can = at + by >= 0 && at + by < list.size();
+        FrameLayout b = new FrameLayout(this);
+        ImageView arrow = Ui.icon(this, R.drawable.ic_chevron_forward, 20, can ? Ui.PRIMARY : Ui.TEXT_LIGHT);
+        arrow.setRotation(by < 0 ? -90 : 90);
+        b.addView(arrow, new FrameLayout.LayoutParams(Ui.dp(this, 20), Ui.dp(this, 20), Gravity.CENTER));
+        b.setLayoutParams(Ui.lp(Ui.dp(this, 44), Ui.dp(this, 44)));
+        b.setContentDescription((by < 0 ? "Move up: " : "Move down: ") + list.get(at).name);
+        b.setEnabled(can);
+        return Ui.touch(b, 0.2f, new View.OnClickListener() {
+            public void onClick(View v) {
+                if (!can) return;
+                List<Long> ids = new ArrayList<Long>();
+                for (Db.WorkoutExercise e : list) ids.add(e.id);
+                Collections.swap(ids, at, at + by);
+                db.reorderWorkoutExercises(ids);
+                fillReorder(rows);
+                load();
+            }
+        });
+    }
+
+    /** A pop-up taller than the screen scrolls inside the dimmed layer. */
+    private View scrolling(View card) {
+        ScrollView sv = new ScrollView(this);
+        sv.addView(card);
+        return sv;
     }
 
     // --------------------------------------------------------------- finish

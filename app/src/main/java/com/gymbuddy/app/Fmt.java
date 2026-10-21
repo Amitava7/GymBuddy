@@ -4,6 +4,7 @@ import android.icu.text.DateFormat;
 
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.Locale;
 import java.util.TimeZone;
@@ -77,6 +78,31 @@ final class Fmt {
     /** Exercise history: "Apr 7, 2026". */
     static String shortDate(String s) {
         return skeleton(utc(s), "yMMMd", Locale.US);
+    }
+
+    /** Chart dates: "Apr 7", with the year when it is not this year: "Apr 7, 2025". */
+    static String day(String s) {
+        Date d = utc(s);
+        if (d == null) return "Invalid Date";
+        Calendar then = Calendar.getInstance();
+        then.setTime(d);
+        boolean thisYear = then.get(Calendar.YEAR) == Calendar.getInstance().get(Calendar.YEAR);
+        return skeleton(d, thisYear ? "MMMd" : "yMMMd", Locale.US);
+    }
+
+    /** Whole days from one SQLite timestamp to another (or to now when {@code to} is null). */
+    static long daysBetween(String from, String to) {
+        Date a = utc(from), b = to == null ? new Date() : utc(to);
+        if (a == null || b == null) return 0;
+        return Math.max(0, Math.round((b.getTime() - a.getTime()) / 86400000.0));
+    }
+
+    /** "1 day", "9 days", "3 weeks", "5 months", "2 years". */
+    static String span(long days) {
+        if (days < 14) return days == 1 ? "1 day" : days + " days";
+        if (days < 63) return Math.round(days / 7.0) + " weeks";
+        if (days < 730) return Math.round(days / 30.44) + " months";
+        return Math.round(days / 365.25) + " years";
     }
 
     /** Date.toLocaleString() in the phone's own locale. */

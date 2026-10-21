@@ -38,9 +38,9 @@ TARBALL = "https://registry.npmjs.org/%s/-/vector-icons-%s.tgz" % (PACKAGE, VERS
 FONT = "package/build/vendor/react-native-vector-icons/Fonts/Ionicons.ttf"
 GLYPHMAP = "package/build/vendor/react-native-vector-icons/glyphmaps/Ionicons.json"
 
-# Every Ionicons name the old screens used.
+# Every Ionicons name the screens use.
 ICONS = [
-    "add", "add-circle", "add-circle-outline", "barbell", "barbell-outline",
+    "add", "add-circle", "add-circle-outline", "analytics-outline", "barbell", "barbell-outline",
     "business", "calendar-outline", "checkmark-circle", "checkmark-done",
     "chevron-forward", "close", "close-circle", "close-circle-outline",
     "create-outline", "document-text", "download-outline", "ellipse-outline",

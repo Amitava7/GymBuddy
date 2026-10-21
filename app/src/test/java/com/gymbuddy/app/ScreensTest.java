@@ -232,6 +232,89 @@ public class ScreensTest {
         shot(s, "07-summary");
     }
 
+    /** Each exercise in a running workout opens its chart, and Back closes it again. */
+    @Test
+    public void chartFromARunningWorkout() throws Exception {
+        Db.Gym g = firstGym();
+        Db.Template t = db.getWorkoutTemplates(g.id).get(0);
+        long workoutId = GymActivity.startFromTemplate(db, t);
+        WorkoutActivity w = start(WorkoutActivity.class, "gymId", g.id, "workoutId", workoutId);
+        Db.WorkoutExercise first = db.getWorkoutExercises(workoutId).get(0);
+
+        View button = findByDescription(w.getWindow().getDecorView(), "Progress for " + first.name);
+        assertNotNull(button);
+        button.performClick();
+        idle();
+        assertTrue(w.overlayShown());
+        assertShows(w, first.name, "WEIGHT PER SESSION", "TIME AT EACH WEIGHT", "REPS PER SESSION", "All history");
+        List<LineChart> charts = new ArrayList<LineChart>();
+        charts(w.getWindow().getDecorView(), charts);
+        assertEquals(2, charts.size());
+        // the band starts at the last increase
+        List<Progress.Step> steps = Progress.steps(
+                Progress.series(db.getExerciseHistory(first.exerciseId), true));
+        int last = steps.get(steps.size() - 1).from;
+        assertEquals(last > 0 ? last : -1, charts.get(0).marked());
+        shot(w, "04b-workout-chart");
+
+        w.onBackPressed();
+        idle();
+        assertFalse(w.overlayShown());
+        assertFalse(w.isFinishing());
+
+        // an exercise never done before says so
+        long fresh = db.getExercises("Side Plank", null).get(0).id;
+        db.addWorkoutExercise(workoutId, fresh, 99);
+        w = start(WorkoutActivity.class, "gymId", g.id, "workoutId", workoutId);
+        findByDescription(w.getWindow().getDecorView(), "Progress for Side Plank").performClick();
+        idle();
+        assertShows(w, "No finished workouts with this exercise yet.");
+    }
+
+    /** Reorder moves exercises up and down, the cards follow, and the saved workout gets the order on Finish. */
+    @Test
+    public void reorderDuringAWorkout() throws Exception {
+        Db.Gym g = firstGym();
+        Db.Template t = db.getWorkoutTemplates(g.id).get(0);
+        long workoutId = GymActivity.startFromTemplate(db, t);
+        WorkoutActivity w = start(WorkoutActivity.class, "gymId", g.id, "workoutId", workoutId);
+        List<Db.WorkoutExercise> before = db.getWorkoutExercises(workoutId);
+        assertTrue(before.size() >= 3);
+
+        findByDescription(w.getWindow().getDecorView(), "Reorder exercises").performClick();
+        idle();
+        assertShows(w, "Reorder Exercises", "Done", before.get(0).name, before.get(1).name);
+        View up = findByDescription(w.getWindow().getDecorView(), "Move up: " + before.get(0).name);
+        assertFalse("the first one cannot go up", up.isEnabled());
+        findByDescription(w.getWindow().getDecorView(), "Move down: " + before.get(0).name).performClick();
+        idle();
+        findByDescription(w.getWindow().getDecorView(), "Move up: " + before.get(2).name).performClick();
+        idle();
+        shot(w, "04c-reorder");
+
+        List<Long> want = new ArrayList<Long>();
+        want.add(before.get(1).id);
+        want.add(before.get(2).id);
+        want.add(before.get(0).id);
+        for (int i = 3; i < before.size(); i++) want.add(before.get(i).id);
+        List<Long> got = new ArrayList<Long>();
+        for (Db.WorkoutExercise e : db.getWorkoutExercises(workoutId)) got.add(e.id);
+        assertEquals(want, got);
+
+        tap(w, "Done");
+        assertFalse(w.overlayShown());
+        // the cards behind are in the new order
+        List<String> shown = texts(w);
+        assertTrue(shown.indexOf(before.get(1).name) < shown.indexOf(before.get(0).name));
+
+        WorkoutActivity.complete(db, workoutId);
+        List<Long> saved = new ArrayList<Long>();
+        for (Db.TemplateExercise te : db.getTemplateExercises(t.id)) saved.add(te.exerciseId);
+        List<Long> order = new ArrayList<Long>();
+        for (Db.WorkoutExercise e : db.getWorkoutExercises(workoutId)) order.add(e.exerciseId);
+        assertEquals(order, saved);
+    }
+
     /** Back in the middle of a workout asks first instead of dropping it. */
     @Test
     public void backDuringAWorkoutAsksFirst() throws Exception {
@@ -354,7 +437,7 @@ public class ScreensTest {
         }
         ExerciseActivity d = start(ExerciseActivity.class, "exerciseId", best);
         assertShows(d, "Personal Records", "Max Weight", "History & Trends",
-                "WEIGHT PER SESSION", "REPS PER SESSION", "VOLUME PER SESSION");
+                "WEIGHT PER SESSION", "TIME AT EACH WEIGHT", "REPS PER SESSION", "VOLUME PER SESSION");
         // one point for every session, on both lines
         List<LineChart> charts = new ArrayList<LineChart>();
         charts(d.getWindow().getDecorView(), charts);

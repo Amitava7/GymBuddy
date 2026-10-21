@@ -514,6 +514,22 @@ final class Db extends SQLiteOpenHelper {
         w().update("workout_exercises", v, "id=?", args(id));
     }
 
+    /** Puts a workout's exercises in this order. */
+    void reorderWorkoutExercises(List<Long> workoutExerciseIds) {
+        SQLiteDatabase db = w();
+        db.beginTransaction();
+        try {
+            for (int i = 0; i < workoutExerciseIds.size(); i++) {
+                ContentValues v = new ContentValues();
+                v.put("sort_order", i);
+                db.update("workout_exercises", v, "id=?", args(workoutExerciseIds.get(i)));
+            }
+            db.setTransactionSuccessful();
+        } finally {
+            db.endTransaction();
+        }
+    }
+
     void deleteWorkoutExercise(long id) {
         w().delete("workout_sets", "workout_exercise_id=?", args(id));
         w().delete("workout_exercises", "id=?", args(id));

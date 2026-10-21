@@ -4,31 +4,39 @@ import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Path;
+import android.graphics.RectF;
 import android.util.TypedValue;
 import android.view.View;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * A line through every session, oldest on the left, one dot for each time the
- * exercise was done. Sessions are spaced evenly so each one gets its own dot;
- * the first and last dates sit under the ends. A few gridlines at round values
- * give the scale. Drawn by hand: there is no chart library in the app.
+ * exercise was done. Sessions are spaced evenly so each one gets its own dot.
+ * Dates sit under the first and last session and one in between; a marked
+ * session (the last time the weight went up) gets a shaded band from it to the
+ * end and its date under it instead. A few gridlines at round values give the
+ * scale. Drawn by hand: there is no chart library in the app.
  */
 final class LineChart extends View {
 
     private final double[] values;
-    private final String firstLabel, lastLabel;
+    private final String[] dates;
     private final double lo, hi, step;
+    private int marked = -1;
     private final Paint line = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint dot = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint grid = new Paint();
+    private final Paint band = new Paint();
     private final Paint label = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Path path = new Path();
 
-    LineChart(Context c, double[] values, String firstLabel, String lastLabel) {
+    /** {@code dates} has the label for each point. */
+    LineChart(Context c, double[] values, String[] dates) {
         super(c);
         this.values = values;
-        this.firstLabel = firstLabel;
-        this.lastLabel = lastLabel;
+        this.dates = dates;
 
         double min = Double.MAX_VALUE, max = -Double.MAX_VALUE;
         for (double v : values) {
@@ -51,7 +59,7 @@ final class LineChart extends View {
         line.setStrokeJoin(Paint.Join.ROUND);
         grid.setColor(Ui.BORDER);
         grid.setStrokeWidth(Math.max(1, Ui.dp(c, 1)));
-        label.setColor(Ui.TEXT_SECONDARY);
+        band.setColor(Ui.PRIMARY_15);
         label.setTypeface(Ui.weight(400));
         label.setTextSize(TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 10,
                 c.getResources().getDisplayMetrics()));
@@ -60,6 +68,16 @@ final class LineChart extends View {
 
     int size() {
         return values.length;
+    }
+
+    /** Shades from this point to the end and puts its date under it. */
+    void mark(int index) {
+        marked = index > 0 && index < values.length ? index : -1;
+        invalidate();
+    }
+
+    int marked() {
+        return marked;
     }
 
     /** 1, 2, 2.5 or 5 times a power of ten, and never under 1 (no 0.5 kg gridlines). */
@@ -92,14 +110,6 @@ final class LineChart extends View {
         float top = textH / 2 + dp(4);
         float bottom = h - textH - dp(8);
 
-        // gridlines and their values, right-aligned in the left margin
-        label.setTextAlign(Paint.Align.RIGHT);
-        for (int i = 0; i < ticks; i++) {
-            float y = y(lo + i * step, top, bottom);
-            canvas.drawLine(plotLeft, y, w, y, grid);
-            canvas.drawText(tickText[i], tickW, y - (fm.ascent + fm.descent) / 2, label);
-        }
-
         // dots shrink and lose their ring once sessions crowd together
         int n = values.length;
         float ring = dp(2), r = dp(4);
@@ -109,6 +119,27 @@ final class LineChart extends View {
             r = Math.max(dp(1.5f), Math.min(r, gap / 3));
             ring = r >= dp(3) ? ring : 0;
         }
+
+        // since the last increase: a band behind the line, and a hairline where it starts
+        if (marked > 0) {
+            float mx = x(marked, n, left, right);
+            canvas.drawRect(mx - gap / 2, top, w, bottom, band);
+            line.setAlpha(0x66);
+            line.setStrokeWidth(Math.max(1, dp(1)));
+            canvas.drawLine(mx, top, mx, bottom, line);
+            line.setAlpha(0xFF);
+            line.setStrokeWidth(dp(2));
+        }
+
+        // gridlines and their values, right-aligned in the left margin
+        label.setColor(Ui.TEXT_SECONDARY);
+        label.setTextAlign(Paint.Align.RIGHT);
+        for (int i = 0; i < ticks; i++) {
+            float y = y(lo + i * step, top, bottom);
+            canvas.drawLine(plotLeft, y, w, y, grid);
+            canvas.drawText(tickText[i], tickW, y - (fm.ascent + fm.descent) / 2, label);
+        }
+
         path.reset();
         for (int i = 0; i < n; i++) {
             float x = x(i, n, left, right), y = y(values[i], top, bottom);
@@ -126,17 +157,35 @@ final class LineChart extends View {
             canvas.drawCircle(x, y, r, dot);
         }
 
-        // first and last dates under the ends
+        // dates under the points, most important first (when the weight last
+        // went up, then the latest session), none on top of another
         float baseline = h - fm.descent;
-        if (n == 1 || firstLabel.equals(lastLabel)) {
-            label.setTextAlign(Paint.Align.CENTER);
-            canvas.drawText(lastLabel, x(n - 1, n, left, right), baseline, label);
-        } else {
-            label.setTextAlign(Paint.Align.LEFT);
-            canvas.drawText(firstLabel, plotLeft, baseline, label);
-            label.setTextAlign(Paint.Align.RIGHT);
-            canvas.drawText(lastLabel, w, baseline, label);
+        List<RectF> taken = new ArrayList<RectF>();
+        if (marked > 0) dateLabel(canvas, marked, x(marked, n, left, right), 0, baseline, plotLeft, w, taken);
+        dateLabel(canvas, n - 1, n == 1 ? x(0, n, left, right) : w, n == 1 ? 0 : 1, baseline, plotLeft, w, taken);
+        dateLabel(canvas, 0, plotLeft, -1, baseline, plotLeft, w, taken);
+        if (marked < 0 && n > 2) dateLabel(canvas, n / 2, x(n / 2, n, left, right), 0, baseline, plotLeft, w, taken);
+    }
+
+    /**
+     * Draws a point's date at x: left-aligned (-1), centred (0) or
+     * right-aligned (1), kept inside the chart, and skipped if it would run
+     * into one already drawn. The marked point's date is brighter.
+     */
+    private void dateLabel(Canvas canvas, int i, float x, int align, float baseline, float minX, float maxX,
+                           List<RectF> taken) {
+        String text = dates[i];
+        float tw = label.measureText(text);
+        float start = align < 0 ? x : align > 0 ? x - tw : x - tw / 2;
+        start = Math.max(minX, Math.min(start, maxX - tw));
+        RectF rect = new RectF(start - dp(6), 0, start + tw + dp(6), 1);
+        for (RectF t : taken) {
+            if (RectF.intersects(t, rect)) return;
         }
+        taken.add(rect);
+        label.setColor(i == marked ? Ui.TEXT : Ui.TEXT_SECONDARY);
+        label.setTextAlign(Paint.Align.LEFT);
+        canvas.drawText(text, start, baseline, label);
     }
 
     private static float x(int i, int n, float left, float right) {
