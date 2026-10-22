@@ -203,8 +203,8 @@ public class BackupTest {
         Db.Records r = db.getExerciseRecords(ex);
         assertNotNull(r.maxKg);
         assertTrue(db.getExerciseHistory(ex).size() > 0);
-        assertNotNull(db.getLastWorkoutDataForExercise(ex, null));
-        assertNull(db.getLastWorkoutDataForExercise(ex, 987654L));
+        assertNotNull(db.getLastWorkoutDataForExercise(ex, null, 0));
+        assertNull(db.getLastWorkoutDataForExercise(ex, 987654L, 0));
     }
 
     @Test

@@ -10,7 +10,10 @@ import android.widget.TextView;
 
 import java.util.List;
 
-/** One exercise: its details, personal records, and how the volume has gone. */
+/**
+ * One exercise: its details, personal records, how the weight, reps and volume
+ * have gone, how long each weight lasted, and every session.
+ */
 public final class ExerciseActivity extends Screen {
 
     private long exerciseId;
@@ -81,6 +84,10 @@ public final class ExerciseActivity extends Screen {
             none.setGravity(Gravity.CENTER);
             hist.addView(none, Ui.margins(this, Ui.MATCH, Ui.WRAP, 0, 20, 0, 0));
         } else {
+            View weight = Progress.weight(this, history, 8, true);
+            if (weight != null) hist.addView(weight, Ui.margins(this, Ui.MATCH, Ui.WRAP, 0, 0, 0, 16));
+            View reps = Progress.reps(this, history, true);
+            if (reps != null) hist.addView(reps, Ui.margins(this, Ui.MATCH, Ui.WRAP, 0, 0, 0, 16));
             hist.addView(chart(history), Ui.margins(this, Ui.MATCH, Ui.WRAP, 0, 0, 0, 16));
             for (Db.ExerciseSession h : history) hist.addView(sessionCard(h));
         }

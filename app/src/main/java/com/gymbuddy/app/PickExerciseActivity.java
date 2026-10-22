@@ -122,14 +122,22 @@ public final class PickExerciseActivity extends Screen {
         });
     }
 
-    /** Adds the exercise with last time's note and sets, then goes back to the workout. */
+    /**
+     * Adds the exercise at the end with last time's note and sets, then goes
+     * back to the workout. Picked a second time, it is a slot of its own.
+     */
     private void pick(long exerciseId) {
         if (picking) return;
         picking = true;
-        int count = db.getWorkoutExercises(workoutId).size();
-        long weId = db.addWorkoutExercise(workoutId, exerciseId, count);
+        int next = 0, slot = 0;
+        for (Db.WorkoutExercise e : db.getWorkoutExercises(workoutId)) {
+            next = Math.max(next, e.sortOrder + 1);
+            if (e.exerciseId == exerciseId) slot++;
+        }
+        long weId = db.addWorkoutExercise(workoutId, exerciseId, next);
         Db.Workout w = db.getWorkout(workoutId);
-        GymActivity.prefill(db, weId, db.getLastWorkoutDataForExercise(exerciseId, w == null ? null : w.templateId));
+        GymActivity.prefill(db, weId,
+                db.getLastWorkoutDataForExercise(exerciseId, w == null ? null : w.templateId, slot));
         Ui.hideKeyboard(this);
         finish();
     }

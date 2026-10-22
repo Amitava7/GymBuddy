@@ -345,7 +345,7 @@ final class Db extends SQLiteOpenHelper {
         List<TemplateExercise> out = new ArrayList<TemplateExercise>();
         Cursor c = r().rawQuery("SELECT te.id, te.template_id, te.exercise_id, te.sort_order, e.name, e.details"
                 + " FROM template_exercises te JOIN exercises e ON te.exercise_id = e.id"
-                + " WHERE te.template_id=? ORDER BY te.sort_order", args(templateId));
+                + " WHERE te.template_id=? ORDER BY te.sort_order, te.id", args(templateId));
         try {
             while (c.moveToNext()) {
                 TemplateExercise t = new TemplateExercise();
@@ -367,8 +367,24 @@ final class Db extends SQLiteOpenHelper {
         w().delete("workout_templates", "id=?", args(id));
     }
 
-    void removeTemplateExercise(long templateId, long exerciseId) {
-        w().delete("template_exercises", "template_id=? AND exercise_id=?", args(templateId, exerciseId));
+    /**
+     * Makes a saved workout's exercise list exactly this, in this order. Only
+     * workouts started after this see it: finished ones keep their own
+     * exercises, sets and notes.
+     */
+    void setTemplateExercises(long templateId, List<Long> exerciseIds) {
+        List<Long> now = new ArrayList<Long>();
+        for (TemplateExercise te : getTemplateExercises(templateId)) now.add(te.exerciseId);
+        if (now.equals(exerciseIds)) return;
+        SQLiteDatabase db = w();
+        db.beginTransaction();
+        try {
+            db.delete("template_exercises", "template_id=?", args(templateId));
+            for (int i = 0; i < exerciseIds.size(); i++) addTemplateExercise(templateId, exerciseIds.get(i), i);
+            db.setTransactionSuccessful();
+        } finally {
+            db.endTransaction();
+        }
     }
 
     // -------------------------------------------------------------- workouts
@@ -459,7 +475,7 @@ final class Db extends SQLiteOpenHelper {
         Cursor c = r().rawQuery("SELECT we.id, we.workout_id, we.exercise_id, we.note, we.is_completed,"
                 + " we.sort_order, e.name, e.details"
                 + " FROM workout_exercises we JOIN exercises e ON we.exercise_id = e.id"
-                + " WHERE we.workout_id=? ORDER BY we.sort_order", args(workoutId));
+                + " WHERE we.workout_id=? ORDER BY we.sort_order, we.id", args(workoutId));
         try {
             while (c.moveToNext()) {
                 WorkoutExercise e = new WorkoutExercise();
@@ -496,6 +512,22 @@ final class Db extends SQLiteOpenHelper {
         ContentValues v = new ContentValues();
         v.put("note", note);
         w().update("workout_exercises", v, "id=?", args(id));
+    }
+
+    /** Puts a workout's exercises in this order. */
+    void reorderWorkoutExercises(List<Long> workoutExerciseIds) {
+        SQLiteDatabase db = w();
+        db.beginTransaction();
+        try {
+            for (int i = 0; i < workoutExerciseIds.size(); i++) {
+                ContentValues v = new ContentValues();
+                v.put("sort_order", i);
+                db.update("workout_exercises", v, "id=?", args(workoutExerciseIds.get(i)));
+            }
+            db.setTransactionSuccessful();
+        } finally {
+            db.endTransaction();
+        }
     }
 
     void deleteWorkoutExercise(long id) {
@@ -556,16 +588,21 @@ final class Db extends SQLiteOpenHelper {
     /**
      * What you did last time: the note and sets from the most recent finished
      * workout with this exercise. With a template, only workouts from that
-     * template count.
+     * template count. An exercise can be in a workout more than once; each
+     * time is a slot of its own, counted from 0 in workout order, and only the
+     * same slot is copied, so the two keep their own sets and notes.
      */
-    LastData getLastWorkoutDataForExercise(long exerciseId, Long templateId) {
+    LastData getLastWorkoutDataForExercise(long exerciseId, Long templateId, int slot) {
         boolean byTemplate = templateId != null && templateId != 0;
         Cursor c = r().rawQuery("SELECT we.id, we.note FROM workout_exercises we"
                         + " JOIN workouts w ON we.workout_id = w.id"
                         + " WHERE we.exercise_id=? AND w.finished_at IS NOT NULL"
                         + (byTemplate ? " AND w.template_id=?" : "")
-                        + " ORDER BY w.started_at DESC LIMIT 1",
-                byTemplate ? args(exerciseId, templateId) : args(exerciseId));
+                        + " AND (SELECT COUNT(*) FROM workout_exercises o WHERE o.workout_id = we.workout_id"
+                        + "   AND o.exercise_id = we.exercise_id AND (o.sort_order < we.sort_order"
+                        + "   OR (o.sort_order = we.sort_order AND o.id < we.id))) = CAST(? AS INTEGER)"
+                        + " ORDER BY w.started_at DESC, w.id DESC LIMIT 1",
+                byTemplate ? args(exerciseId, templateId, slot) : args(exerciseId, slot));
         long weId;
         LastData out = new LastData();
         try {

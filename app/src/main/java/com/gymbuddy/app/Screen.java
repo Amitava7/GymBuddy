@@ -44,10 +44,11 @@ abstract class Screen extends Activity {
     FrameLayout content;
     TextView headerTitle;
 
-    private LinearLayout header;
+    private LinearLayout header, headerBar;
     private View topSpacer;
     private View bottomBar;
     private int bottomBarPad;
+    private boolean bottomBarFloating;
     private View overlay;
 
     @Override
@@ -109,6 +110,14 @@ abstract class Screen extends Activity {
         bar.addView(headerTitle, tp);
         header.addView(bar, Ui.lp(Ui.MATCH, Ui.dp(this, 56)));
         page.addView(header, 0, Ui.lp(Ui.MATCH, Ui.WRAP));
+        headerBar = bar;
+    }
+
+    /** Puts a button at the right end of the header. */
+    void headerAction(View button) {
+        LinearLayout.LayoutParams p = Ui.lp(Ui.WRAP, Ui.WRAP);
+        p.setMarginEnd(Ui.dp(this, 16));
+        headerBar.addView(button, p);
     }
 
     void title(String t) {
@@ -126,11 +135,14 @@ abstract class Screen extends Activity {
      * A full-width bar along the bottom. It runs under the navigation bar,
      * padded {@code padDp} below its content. A floating bar (Finish Workout,
      * Back to Gym) sits over the scrolling content, the way the absolutely
-     * positioned buttons did; otherwise it goes under it.
+     * positioned buttons did; otherwise it goes under it. A floating bar steps
+     * aside while the keyboard is up: the field being typed in scrolls to just
+     * above the keyboard, which is exactly where the bar would cover it.
      */
     void bottomBar(View bar, int padDp, boolean floating) {
         bottomBar = bar;
         bottomBarPad = padDp;
+        bottomBarFloating = floating;
         if (floating) content.addView(bar, new FrameLayout.LayoutParams(Ui.MATCH, Ui.WRAP, Gravity.BOTTOM));
         else page.addView(bar, Ui.lp(Ui.MATCH, Ui.WRAP));
     }
@@ -150,6 +162,7 @@ abstract class Screen extends Activity {
             int pad = Ui.dp(this, bottomBarPad);
             bottomBar.setPadding(bottomBar.getPaddingLeft(), bottomBar.getPaddingTop(),
                     bottomBar.getPaddingRight(), keyboard ? pad : Math.max(pad, bars.bottom + Ui.dp(this, 10)));
+            if (bottomBarFloating) bottomBar.setVisibility(keyboard ? View.GONE : View.VISIBLE);
         } else {
             bottom = Math.max(bars.bottom, ime);
         }
@@ -312,6 +325,16 @@ abstract class Screen extends Activity {
         if (icon != 0) b.addView(Ui.icon(this, icon, 20, Ui.BACKGROUND));
         b.addView(Ui.text(this, label, 18, Ui.BACKGROUND, 700));
         return Ui.touch(b, 0.8f, click);
+    }
+
+    /** The small rounded button with an icon and an optional label: Home's Exercises, the workout's Reorder. */
+    LinearLayout pill(int icon, String label) {
+        LinearLayout b = Ui.gap(Ui.row(this), 6);
+        b.setBackground(Ui.box(this, Ui.SURFACE, 20, Ui.BORDER));
+        Ui.pad(b, 14, 8, 14, 8);
+        b.addView(Ui.icon(this, icon, 18, Ui.PRIMARY));
+        if (label != null) b.addView(Ui.text(this, label, 13, Ui.PRIMARY, 600));
+        return b;
     }
 
     /** The grey empty-state block: icon, line, smaller line. */

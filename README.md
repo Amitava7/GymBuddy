@@ -15,11 +15,25 @@ The APK is produced by GitHub Actions; there is nothing to install locally.
 - Create and organise exercises, filter by muscle group and equipment, search
 - Saved workouts per gym: tap one to start it with last time's note and sets
   filled in; a workout started from scratch is saved when you finish it
-- Log sets with kg and reps, notes per exercise, tick exercises off
+- Each saved workout keeps its own sets and notes: the same exercise in two
+  saved workouts (or twice in one) never shares them
+- Changes carry forward, never back: exercises you add or remove, and the sets
+  and notes you log, become the saved workout from the moment you finish that
+  workout. Finished workouts keep exactly what was done, and a cancelled one
+  changes nothing
+- Log sets with kg and reps, notes per exercise, tick exercises off; the field
+  you type in stays in view above the keyboard
+- During a workout: each exercise's chart opens over it from the chart button
+  next to its name, and Reorder moves exercises up and down (the saved workout
+  takes the new order when you finish)
 - A running clock, Finish / Cancel Workout, and a summary with duration,
-  exercises, sets and volume
-- History per gym, and per exercise: personal records, a volume-per-session
-  chart and every session
+  exercises, sets and volume. Back during a workout asks before leaving it
+- History per gym, and per exercise: personal records, line charts of the
+  weight and reps with a point for every session and their dates, a
+  volume-per-session chart and every session
+- Time at each weight: when the weight last went up (shaded on the chart), and
+  for each weight how many sessions and how long it lasted before the next
+  increase. A lighter day, or a lighter saved workout, does not count as a drop
 - Export everything to a JSON backup and import it back (merge or replace)
 - Dark theme, fully offline, no account, no permissions
 
@@ -66,7 +80,7 @@ compatibility code for anything older.
 | what | how |
 | --- | --- |
 | No dependencies | Framework classes only. SQLite, JSON, dialogs and the share sheet all come with Android. |
-| No icon font | The 27 Ionicons the screens use are vector drawables cut from the same font file the old app shipped, so they look identical without its 390 KB. |
+| No icon font | The 28 Ionicons the screens use are vector drawables cut from the same font file the old app shipped, so they look identical without its 390 KB. |
 | No XML layouts | Screens are built in code from the React Native styles: same sizes, colours and weights. |
 | One launcher bitmap | The old icon, scaled once to 432 px WebP. |
 | R8 + one locale | Minified and shrunk, English only, no dependency metadata block. |
@@ -78,16 +92,19 @@ CI fails the build if the APK ever passes 1 MB.
 1. **Unit tests** — Robolectric runs the real SQLite code on the JVM: the
    schema and seed, replace and merge imports, export, the byte-for-byte
    round trip, the error messages, the queries behind the screens, the date
-   formats, and every screen opened on top of an imported backup. Screenshots
+   formats, how saved workouts carry sets and notes forward, time at each
+   weight, that the field being typed in stays above the keyboard, and every
+   screen opened on top of an imported backup. Screenshots
    of each screen are uploaded with the test report.
 2. **Build release APK** — assembles, signs, prints a size breakdown in the job
    summary and fails past the size budget.
 3. **Use it on an emulator** — installs the APK on Android 14, checks the fresh
    install, imports `app/src/test/resources/sample-backup.json` through the
    Import Data dialogs, exports it again and compares, runs a saved workout and
-   a new one with a picked exercise to the summary, opens the exercise screens
-   and the delete prompt, checks the screen really is in the app's colours,
-   and fails on any crash.
+   a new one with a picked exercise to the summary, opens an exercise's chart,
+   reorders, types with the keyboard up and presses back in the middle of a
+   workout, opens the exercise screens and the delete prompt, checks the
+   screen really is in the app's colours, and fails on any crash.
 
 To run the unit tests against a real export locally:
 
@@ -115,6 +132,8 @@ app/src/main/java/com/gymbuddy/app/
   HistoryActivity          finished workouts at a gym
   ExercisesActivity        all exercises
   ExerciseActivity         records and trends for one
+  Progress                 the weight and reps sections and time at each weight
+  LineChart                draws one line, with its dates and the last increase
   ExerciseFormActivity     new / edit exercise
   BackupActivity           Backup & Restore
 tools/

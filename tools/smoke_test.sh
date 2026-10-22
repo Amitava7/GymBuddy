@@ -2,10 +2,12 @@
 # Installs the release APK on a running emulator and uses it the way a person
 # would: fresh install, import a backup through the Import Data dialogs, export
 # it again and check nothing changed, then a saved workout and a new one end to
-# end, the exercise screens, and the delete prompts. Fails on any crash or on a
-# screen that does not show what it should. Buttons are found by reading the
-# view hierarchy, so this does not depend on the screen size. Screenshots land
-# in shots/ and the workflow uploads them.
+# end, back, an exercise's chart, reordering and typing with the keyboard up in
+# the middle of a workout, the exercise screens and their charts, and the
+# delete prompts. Fails on any crash or on a screen that does not show
+# what it should. Buttons are found by reading the view hierarchy, so this does
+# not depend on the screen size. Screenshots land in shots/ and the workflow
+# uploads them.
 set -euo pipefail
 
 APK=$(ls apk/*.apk | head -1)
@@ -107,6 +109,60 @@ open_screen() {  # open_screen <Activity> [am start extras...]
 
 back() {
     adb shell input keyevent KEYCODE_BACK
+    sleep 2
+}
+
+# Closes the keyboard if it is up; it covers buttons and eats the first back.
+no_keyboard() {
+    if adb shell dumpsys input_method | grep -q "mInputShown=true"; then
+        back
+    fi
+}
+
+# x y of the middle of the lowest text field that is clear of the Finish
+# Workout bar, so tapping it cannot hit the bar instead.
+lowest_input() {
+    ui | python3 -c '
+import re, sys
+nodes = re.findall(r"<node [^>]*>", sys.stdin.read())
+def box(n):
+    return [int(v) for v in re.search(r"bounds=\"\[(\d+),(\d+)\]\[(\d+),(\d+)\]\"", n).groups()]
+bar = min([box(n)[1] for n in nodes if "text=\"Finish Workout\"" in n] or [10 ** 9])
+fields = [box(n) for n in nodes if "android.widget.EditText" in n]
+fields = [b for b in fields if b[3] < bar - 80]
+if fields:
+    b = max(fields, key=lambda b: b[3])
+    print((b[0] + b[2]) // 2, (b[1] + b[3]) // 2)
+'
+}
+
+# Succeeds when the focused text field sits wholly inside the scrolling list,
+# which ends where the keyboard begins.
+focused_in_view() {
+    ui | python3 -c '
+import re, sys
+nodes = re.findall(r"<node [^>]*>", sys.stdin.read())
+def box(n):
+    return [int(v) for v in re.search(r"bounds=\"\[(\d+),(\d+)\]\[(\d+),(\d+)\]\"", n).groups()]
+field = [box(n) for n in nodes if "android.widget.EditText" in n and "focused=\"true\"" in n]
+lists = [box(n) for n in nodes if "android.widget.ScrollView" in n]
+if not field or not lists:
+    sys.exit("no focused field or no list on screen")
+f, s = field[0], max(lists, key=lambda b: (b[3] - b[1]) * (b[2] - b[0]))
+print("field", f, "list", s)
+sys.exit(0 if s[1] <= f[1] and f[3] <= s[3] else 1)
+'
+}
+
+# A slow half-screen drag, so the page moves about that far and no further.
+swipe() {  # swipe up|down
+    local w h
+    read -r w h < <(adb shell wm size | grep -o '[0-9]*x[0-9]*' | tail -1 | tr x ' ')
+    if [ "$1" = up ]; then
+        adb shell input swipe $((w / 2)) $((h * 3 / 4)) $((w / 2)) $((h / 4)) 800
+    else
+        adb shell input swipe $((w / 2)) $((h / 4)) $((w / 2)) $((h * 3 / 4)) 800
+    fi
     sleep 2
 }
 
@@ -212,6 +268,61 @@ if [ "$(pct 12-workout PRIMARY)" -lt 4 ]; then
 fi
 tap_node 'text="Add Set"'
 crashed add-set
+# each exercise opens its chart over the workout; back closes it
+tap_node 'content-desc="Progress for Bench Press"'
+crashed workout-chart
+expect "WEIGHT PER SESSION" workout-chart
+expect "TIME AT EACH WEIGHT" workout-chart
+shot 12c-workout-chart
+back
+if ui | grep -qF "TIME AT EACH WEIGHT"; then
+    echo "::error::back did not close the chart"
+    exit 1
+fi
+expect "Finish Workout" chart-closed
+# Reorder moves Bench Press down below Pec Deck
+tap_node 'content-desc="Reorder exercises"'
+expect "Reorder Exercises" reorder
+tap_node 'content-desc="Move down: Bench Press"'
+crashed reorder
+shot 12d-reorder
+tap_node 'text="Done"'
+first=$(ui | tr '<' '\n' | grep -o -e 'text="Bench Press"' -e 'text="Pec Deck"' | head -1)
+if [ "$first" != 'text="Pec Deck"' ]; then
+    echo "::error::Pec Deck should come first after moving Bench Press down, saw $first first"
+    exit 1
+fi
+# typing in the lowest field: the Finish bar steps aside and the field stays above the keyboard
+xy=$(lowest_input)
+[ -n "$xy" ] || { echo "::error::no text field clear of the Finish bar"; exit 1; }
+adb shell input tap $xy
+sleep 3
+shot 12e-typing
+if ! adb shell dumpsys input_method | grep -q "mInputShown=true"; then
+    echo "::error::the keyboard did not come up for the field at $xy"
+    exit 1
+fi
+if ui | grep -qF 'text="Finish Workout"'; then
+    echo "::error::the Finish Workout bar stayed up over the field being typed in"
+    exit 1
+fi
+focused_in_view || { echo "::error::the field being typed in is not in view above the keyboard"; exit 1; }
+no_keyboard
+expect "Finish Workout" keyboard-closed
+# back in the middle of a workout asks first, and Keep Going stays on it
+no_keyboard
+back
+expect "Leave Workout?" leave
+expect "This workout is still in progress." leave
+shot 12b-leave-dialog
+tap_node 'text="Keep Going"'
+crashed keep-going
+if ui | grep -qF "Leave Workout?"; then
+    echo "::error::the Leave Workout? dialog is still up after Keep Going"
+    exit 1
+fi
+expect "Finish Workout" kept-going
+expect "Bench Press" kept-going
 tap_node 'text="Finish Workout"'
 expect "Complete this workout?" finish
 shot 13-finish-dialog
@@ -256,14 +367,21 @@ tap_node 'text="Legs"'
 expect "Bench Press" unfiltered
 tap_node 'text="Bench Press"'
 expect "Personal Records" exercise
-expect "VOLUME PER SESSION" exercise
+expect "WEIGHT PER SESSION" exercise
+expect "TIME AT EACH WEIGHT" exercise
 shot 18-exercise
+# the reps line and the volume bars are further down
+swipe up
+expect "REPS PER SESSION" exercise-trends
+expect "VOLUME PER SESSION" exercise-trends
+shot 18b-exercise-trends
+crashed exercise-trends
+swipe down
+swipe down
 tap_node 'content-desc="Edit exercise"'
 expect "Edit Exercise" edit
 # the name field opens with the keyboard up, and the keyboard covers the button
-if adb shell dumpsys input_method | grep -q "mInputShown=true"; then
-    back
-fi
+no_keyboard
 expect "Update Exercise" edit
 shot 19-edit-exercise
 crashed exercises

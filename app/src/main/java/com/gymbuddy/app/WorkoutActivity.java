@@ -1,5 +1,6 @@
 package com.gymbuddy.app;
 
+import android.database.sqlite.SQLiteDatabase;
 import android.graphics.Paint;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
@@ -7,35 +8,36 @@ import android.os.Handler;
 import android.os.Looper;
 import android.text.Editable;
 import android.text.InputType;
+import android.text.TextUtils;
 import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.View;
 import android.view.accessibility.AccessibilityEvent;
 import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 /**
  * The workout in progress: a running clock, one card per exercise with its
  * note and sets, and Finish Workout pinned to the bottom. What you type is
- * saved as you type it.
+ * saved as you type it. Each exercise's chart opens over the workout, and
+ * Reorder in the header moves exercises up and down.
  */
 public final class WorkoutActivity extends Screen {
 
     private long workoutId, gymId;
-    private Long templateId;
     private Date startTime;
     private TextView clock;
     private LinearLayout cards;
-    private List<Db.WorkoutExercise> exercises = new ArrayList<Db.WorkoutExercise>();
+    private View reorder;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable tick = new Runnable() {
         public void run() {
@@ -50,6 +52,13 @@ public final class WorkoutActivity extends Screen {
         workoutId = longExtra("workoutId");
         gymId = longExtra("gymId");
         header("", false);
+        reorder = Ui.touch(pill(R.drawable.ic_swap_vertical_outline, "Reorder"), 0.2f, new View.OnClickListener() {
+            public void onClick(View v) {
+                showReorder();
+            }
+        });
+        reorder.setContentDescription("Reorder exercises");
+        headerAction(reorder);
 
         LinearLayout col = Ui.column(this);
         LinearLayout timer = Ui.gap(Ui.row(this), 6);
@@ -112,10 +121,9 @@ public final class WorkoutActivity extends Screen {
         if (w == null) return;
         title(w.name);
         startTime = Fmt.utc(w.startedAt);
-        templateId = w.templateId;
-        exercises = db.getWorkoutExercisesWithSets(workoutId);
         cards.removeAllViews();
-        for (Db.WorkoutExercise ex : exercises) cards.addView(card(ex));
+        for (Db.WorkoutExercise ex : db.getWorkoutExercisesWithSets(workoutId)) cards.addView(card(ex));
+        reorder.setVisibility(cards.getChildCount() > 1 ? View.VISIBLE : View.GONE);
         handler.removeCallbacks(tick);
         handler.post(tick);
     }
@@ -150,6 +158,13 @@ public final class WorkoutActivity extends Screen {
         });
         head.addView(toggle);
         head.addView(name, Ui.lp(0, Ui.WRAP, 1f));
+        View chart = iconButton(R.drawable.ic_analytics_outline, 22, Ui.PRIMARY, 0.2f, new View.OnClickListener() {
+            public void onClick(View v) {
+                showProgress(ex);
+            }
+        });
+        chart.setContentDescription("Progress for " + ex.name);
+        head.addView(chart);
         head.addView(iconButton(R.drawable.ic_trash_outline, 20, Ui.DANGER, 0.2f, new View.OnClickListener() {
             public void onClick(View v) {
                 confirmRemove(ex, card);
@@ -265,24 +280,154 @@ public final class WorkoutActivity extends Screen {
         }
     }
 
+    /** The saved workout loses it too, but only once this workout is finished. */
     private void confirmRemove(final Db.WorkoutExercise ex, final View card) {
         alert("Remove Exercise", "Remove \"" + ex.name + "\" from this workout?",
                 new String[]{"Cancel", "Remove"}, null, new Runnable() {
                     public void run() {
                         db.deleteWorkoutExercise(ex.id);
-                        if (templateId != null && templateId != 0) {
-                            db.removeTemplateExercise(templateId, ex.exerciseId);
-                        }
-                        exercises.remove(ex);
                         cards.removeView(card);
+                        reorder.setVisibility(cards.getChildCount() > 1 ? View.VISIBLE : View.GONE);
                     }
                 });
     }
 
+    // ------------------------------------------------------------- pop-ups
+
+    /**
+     * The exercise's weight and reps lines over the workout, with how long the
+     * current weight has lasted, so you can decide whether to go up today.
+     */
+    private void showProgress(final Db.WorkoutExercise ex) {
+        Ui.hideKeyboard(this);
+        List<Db.ExerciseSession> history = db.getExerciseHistory(ex.exerciseId);
+        LinearLayout f = Ui.column(this);
+        f.setBackground(Ui.card(this, 20));
+        Ui.pad(f, 20, 20, 20, 20);
+        LinearLayout head = Ui.gap(Ui.row(this), 12);
+        head.addView(Ui.text(this, ex.name, 20, Ui.TEXT, 700), Ui.lp(0, Ui.WRAP, 1f));
+        View close = iconButton(R.drawable.ic_close, 24, Ui.TEXT_SECONDARY, 0.2f, new View.OnClickListener() {
+            public void onClick(View v) {
+                hideOverlay();
+            }
+        });
+        close.setContentDescription("Close");
+        head.addView(close);
+        f.addView(head, Ui.margins(this, Ui.MATCH, Ui.WRAP, 0, 0, 0, 16));
+
+        View weight = Progress.weight(this, history, 3, false);
+        View reps = Progress.reps(this, history, false);
+        if (weight == null && reps == null) {
+            f.addView(Ui.text(this, history.isEmpty() ? "No finished workouts with this exercise yet."
+                    : "No weight or reps logged for this exercise yet.", 14, Ui.TEXT_SECONDARY, 400));
+        }
+        if (weight != null) f.addView(weight, Ui.margins(this, Ui.MATCH, Ui.WRAP, 0, 0, 0, 24));
+        if (reps != null) f.addView(reps, Ui.lp(Ui.MATCH, Ui.WRAP));
+        if (!history.isEmpty()) {
+            TextView all = Ui.text(this, "All history", 15, Ui.PRIMARY, 600);
+            Ui.pad(all, 0, 12, 0, 4);
+            f.addView(Ui.touch(all, 0.2f, new View.OnClickListener() {
+                public void onClick(View v) {
+                    hideOverlay();
+                    open(ExerciseActivity.class, "exerciseId", ex.exerciseId);
+                }
+            }), Ui.margins(this, Ui.WRAP, Ui.WRAP, 0, 8, 0, 0));
+        }
+        showOverlay(scrolling(f));
+    }
+
+    /** Moves exercises up and down; each move is saved and shows on the cards behind at once. */
+    private void showReorder() {
+        Ui.hideKeyboard(this);
+        LinearLayout f = formCard("Reorder Exercises");
+        LinearLayout rows = Ui.column(this);
+        f.addView(rows, Ui.lp(Ui.MATCH, Ui.WRAP));
+        fillReorder(rows);
+        LinearLayout end = Ui.row(this);
+        end.setGravity(Gravity.END);
+        TextView done = Ui.text(this, "Done", 16, Ui.BACKGROUND, 700);
+        done.setBackground(Ui.box(this, Ui.PRIMARY, 10));
+        Ui.pad(done, 24, 12, 24, 12);
+        end.addView(Ui.touch(done, 0.8f, new View.OnClickListener() {
+            public void onClick(View v) {
+                hideOverlay();
+            }
+        }));
+        f.addView(end, Ui.margins(this, Ui.MATCH, Ui.WRAP, 0, 8, 0, 0));
+        showOverlay(scrolling(f));
+    }
+
+    private void fillReorder(final LinearLayout rows) {
+        final List<Db.WorkoutExercise> list = db.getWorkoutExercises(workoutId);
+        rows.removeAllViews();
+        for (int i = 0; i < list.size(); i++) {
+            LinearLayout row = Ui.gap(Ui.row(this), 4);
+            row.setBackground(Ui.box(this, Ui.BACKGROUND, 12, Ui.BORDER));
+            Ui.pad(row, 14, 4, 4, 4);
+            TextView number = Ui.text(this, String.valueOf(i + 1), 14, Ui.TEXT_SECONDARY, 600);
+            number.setFontFeatureSettings("tnum");
+            row.addView(number, Ui.lp(Ui.dp(this, 22), Ui.WRAP));
+            TextView name = Ui.text(this, list.get(i).name, 15, Ui.TEXT, 600);
+            name.setSingleLine(true);
+            name.setEllipsize(TextUtils.TruncateAt.END);
+            row.addView(name, Ui.lp(0, Ui.WRAP, 1f));
+            row.addView(move(rows, list, i, -1));
+            row.addView(move(rows, list, i, 1));
+            rows.addView(row, Ui.margins(this, Ui.MATCH, Ui.WRAP, 0, 0, 0, 8));
+        }
+    }
+
+    /** An up (-1) or down (1) arrow; greyed out at the top or bottom. */
+    private View move(final LinearLayout rows, final List<Db.WorkoutExercise> list, final int at, final int by) {
+        final boolean can = at + by >= 0 && at + by < list.size();
+        FrameLayout b = new FrameLayout(this);
+        ImageView arrow = Ui.icon(this, R.drawable.ic_chevron_forward, 20, can ? Ui.PRIMARY : Ui.TEXT_LIGHT);
+        arrow.setRotation(by < 0 ? -90 : 90);
+        b.addView(arrow, new FrameLayout.LayoutParams(Ui.dp(this, 20), Ui.dp(this, 20), Gravity.CENTER));
+        b.setLayoutParams(Ui.lp(Ui.dp(this, 44), Ui.dp(this, 44)));
+        b.setContentDescription((by < 0 ? "Move up: " : "Move down: ") + list.get(at).name);
+        b.setEnabled(can);
+        return Ui.touch(b, 0.2f, new View.OnClickListener() {
+            public void onClick(View v) {
+                if (!can) return;
+                List<Long> ids = new ArrayList<Long>();
+                for (Db.WorkoutExercise e : list) ids.add(e.id);
+                Collections.swap(ids, at, at + by);
+                db.reorderWorkoutExercises(ids);
+                fillReorder(rows);
+                load();
+            }
+        });
+    }
+
+    /** A pop-up taller than the screen scrolls inside the dimmed layer. */
+    private View scrolling(View card) {
+        ScrollView sv = new ScrollView(this);
+        sv.addView(card);
+        return sv;
+    }
+
     // --------------------------------------------------------------- finish
 
+    /**
+     * Back used to close the screen and leave the workout behind, unfinished
+     * and out of sight. It asks first now, with the same choices as Finish.
+     */
+    @Override
+    public void onBackPressed() {
+        if (overlayShown()) {
+            super.onBackPressed();
+            return;
+        }
+        confirmEnd("Leave Workout?", "This workout is still in progress.");
+    }
+
     private void confirmFinish() {
-        alert("Finish Workout", "Complete this workout?",
+        confirmEnd("Finish Workout", "Complete this workout?");
+    }
+
+    private void confirmEnd(String title, String message) {
+        alert(title, message,
                 new String[]{"Keep Going", "Cancel Workout", "Finish"},
                 null,
                 new Runnable() {
@@ -298,27 +443,35 @@ public final class WorkoutActivity extends Screen {
                 });
     }
 
+    private void finishWorkout() {
+        complete(db, workoutId);
+        replace(SummaryActivity.class, "gymId", gymId, "workoutId", workoutId);
+    }
+
     /**
      * Ends the workout. A workout started from scratch becomes a saved
-     * workout; one started from a saved workout adds any new exercises to it.
+     * workout; one started from a saved workout passes on the exercises added
+     * to it or removed from it. The sets and notes go forward too, since the
+     * next start copies them from this workout. Workouts finished before it
+     * keep their own, and a cancelled workout changes nothing.
      */
-    private void finishWorkout() {
-        db.finishWorkout(workoutId);
-        Db.Workout w = db.getWorkout(workoutId);
-        if (w != null && w.templateId == null) {
-            long t = db.createWorkoutTemplate(w.name, gymId);
-            for (Db.WorkoutExercise ex : exercises) db.addTemplateExercise(t, ex.exerciseId, ex.sortOrder);
-            db.setWorkoutTemplate(workoutId, t);
-        } else if (w != null) {
-            Set<Long> have = new HashSet<Long>();
-            for (Db.TemplateExercise te : db.getTemplateExercises(w.templateId)) have.add(te.exerciseId);
-            for (Db.WorkoutExercise ex : exercises) {
-                if (!have.contains(ex.exerciseId)) {
-                    db.addTemplateExercise(w.templateId, ex.exerciseId, ex.sortOrder);
-                }
+    static void complete(Db db, long workoutId) {
+        SQLiteDatabase sql = db.getWritableDatabase();
+        sql.beginTransaction();
+        try {
+            db.finishWorkout(workoutId);
+            Db.Workout w = db.getWorkout(workoutId);
+            if (w != null) {
+                List<Long> ids = new ArrayList<Long>();
+                for (Db.WorkoutExercise ex : db.getWorkoutExercises(workoutId)) ids.add(ex.exerciseId);
+                long t = w.templateId != null ? w.templateId : db.createWorkoutTemplate(w.name, w.gymId);
+                db.setTemplateExercises(t, ids);
+                if (w.templateId == null) db.setWorkoutTemplate(workoutId, t);
             }
+            sql.setTransactionSuccessful();
+        } finally {
+            sql.endTransaction();
         }
-        replace(SummaryActivity.class, "gymId", gymId, "workoutId", workoutId);
     }
 
     abstract static class Watcher implements TextWatcher {

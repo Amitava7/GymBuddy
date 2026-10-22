@@ -1,7 +1,9 @@
 package com.gymbuddy.app;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.robolectric.Shadows.shadowOf;
 
@@ -230,6 +232,134 @@ public class ScreensTest {
         shot(s, "07-summary");
     }
 
+    /** Each exercise in a running workout opens its chart, and Back closes it again. */
+    @Test
+    public void chartFromARunningWorkout() throws Exception {
+        Db.Gym g = firstGym();
+        Db.Template t = db.getWorkoutTemplates(g.id).get(0);
+        long workoutId = GymActivity.startFromTemplate(db, t);
+        WorkoutActivity w = start(WorkoutActivity.class, "gymId", g.id, "workoutId", workoutId);
+        Db.WorkoutExercise first = db.getWorkoutExercises(workoutId).get(0);
+
+        View button = findByDescription(w.getWindow().getDecorView(), "Progress for " + first.name);
+        assertNotNull(button);
+        button.performClick();
+        idle();
+        assertTrue(w.overlayShown());
+        assertShows(w, first.name, "WEIGHT PER SESSION", "TIME AT EACH WEIGHT", "REPS PER SESSION", "All history");
+        List<LineChart> charts = new ArrayList<LineChart>();
+        charts(w.getWindow().getDecorView(), charts);
+        assertEquals(2, charts.size());
+        // the band starts at the last increase
+        List<Progress.Step> steps = Progress.steps(
+                Progress.series(db.getExerciseHistory(first.exerciseId), true));
+        int last = steps.get(steps.size() - 1).from;
+        assertEquals(last > 0 ? last : -1, charts.get(0).marked());
+        shot(w, "04b-workout-chart");
+
+        w.onBackPressed();
+        idle();
+        assertFalse(w.overlayShown());
+        assertFalse(w.isFinishing());
+
+        // an exercise never done before says so
+        long fresh = db.getExercises("Side Plank", null).get(0).id;
+        db.addWorkoutExercise(workoutId, fresh, 99);
+        w = start(WorkoutActivity.class, "gymId", g.id, "workoutId", workoutId);
+        findByDescription(w.getWindow().getDecorView(), "Progress for Side Plank").performClick();
+        idle();
+        assertShows(w, "No finished workouts with this exercise yet.");
+    }
+
+    /** Reorder moves exercises up and down, the cards follow, and the saved workout gets the order on Finish. */
+    @Test
+    public void reorderDuringAWorkout() throws Exception {
+        Db.Gym g = firstGym();
+        Db.Template t = db.getWorkoutTemplates(g.id).get(0);
+        long workoutId = GymActivity.startFromTemplate(db, t);
+        WorkoutActivity w = start(WorkoutActivity.class, "gymId", g.id, "workoutId", workoutId);
+        List<Db.WorkoutExercise> before = db.getWorkoutExercises(workoutId);
+        assertTrue(before.size() >= 3);
+
+        findByDescription(w.getWindow().getDecorView(), "Reorder exercises").performClick();
+        idle();
+        assertShows(w, "Reorder Exercises", "Done", before.get(0).name, before.get(1).name);
+        View up = findByDescription(w.getWindow().getDecorView(), "Move up: " + before.get(0).name);
+        assertFalse("the first one cannot go up", up.isEnabled());
+        findByDescription(w.getWindow().getDecorView(), "Move down: " + before.get(0).name).performClick();
+        idle();
+        findByDescription(w.getWindow().getDecorView(), "Move up: " + before.get(2).name).performClick();
+        idle();
+        shot(w, "04c-reorder");
+
+        List<Long> want = new ArrayList<Long>();
+        want.add(before.get(1).id);
+        want.add(before.get(2).id);
+        want.add(before.get(0).id);
+        for (int i = 3; i < before.size(); i++) want.add(before.get(i).id);
+        List<Long> got = new ArrayList<Long>();
+        for (Db.WorkoutExercise e : db.getWorkoutExercises(workoutId)) got.add(e.id);
+        assertEquals(want, got);
+
+        tap(w, "Done");
+        assertFalse(w.overlayShown());
+        // the cards behind are in the new order
+        List<String> shown = texts(w);
+        assertTrue(shown.indexOf(before.get(1).name) < shown.indexOf(before.get(0).name));
+
+        WorkoutActivity.complete(db, workoutId);
+        List<Long> saved = new ArrayList<Long>();
+        for (Db.TemplateExercise te : db.getTemplateExercises(t.id)) saved.add(te.exerciseId);
+        List<Long> order = new ArrayList<Long>();
+        for (Db.WorkoutExercise e : db.getWorkoutExercises(workoutId)) order.add(e.exerciseId);
+        assertEquals(order, saved);
+    }
+
+    /** Back in the middle of a workout asks first instead of dropping it. */
+    @Test
+    public void backDuringAWorkoutAsksFirst() throws Exception {
+        Db.Gym g = firstGym();
+        Db.Template t = db.getWorkoutTemplates(g.id).get(0);
+        long workoutId = GymActivity.startFromTemplate(db, t);
+        WorkoutActivity w = start(WorkoutActivity.class, "gymId", g.id, "workoutId", workoutId);
+
+        w.onBackPressed();
+        idle();
+        AlertDialog d = dialog("Leave Workout?");
+        assertTrue(d.isShowing());
+        assertEquals("Keep Going", d.getButton(AlertDialog.BUTTON_NEUTRAL).getText().toString());
+        assertEquals("Cancel Workout", d.getButton(AlertDialog.BUTTON_NEGATIVE).getText().toString());
+        assertEquals("Finish", d.getButton(AlertDialog.BUTTON_POSITIVE).getText().toString());
+        assertFalse(w.isFinishing());
+        shot(d.getWindow().getDecorView(), "06b-leave-dialog");
+
+        // Keep Going: still on the workout, nothing lost
+        d.getButton(AlertDialog.BUTTON_NEUTRAL).performClick();
+        idle();
+        assertFalse(w.isFinishing());
+        assertNotNull(db.getWorkout(workoutId));
+        assertNull(db.getWorkout(workoutId).finishedAt);
+
+        // Finish from there goes to the summary like the Finish Workout bar does
+        w.onBackPressed();
+        idle();
+        dialog("Leave Workout?").getButton(AlertDialog.BUTTON_POSITIVE).performClick();
+        idle();
+        assertNotNull(db.getWorkout(workoutId).finishedAt);
+        assertEquals(SummaryActivity.class.getName(), next(w).getComponent().getClassName());
+
+        // Cancel Workout throws it away and goes back to the gym
+        long other = GymActivity.startFromTemplate(db, t);
+        w = start(WorkoutActivity.class, "gymId", g.id, "workoutId", other);
+        w.onBackPressed();
+        idle();
+        dialog("Leave Workout?").getButton(AlertDialog.BUTTON_NEGATIVE).performClick();
+        idle();
+        assertNull(db.getWorkout(other));
+        assertTrue(w.isFinishing());
+        assertEquals(GymActivity.class.getName(), next(w).getComponent().getClassName());
+    }
+
     @Test
     public void newWorkoutAndPickExercise() throws Exception {
         Db.Gym g = firstGym();
@@ -252,6 +382,14 @@ public class ScreensTest {
 
         WorkoutActivity w = startIntent(WorkoutActivity.class, toWorkout);
         assertShows(w, "Arms day", "Bench Press");
+    }
+
+    private static void charts(View v, List<LineChart> out) {
+        if (v instanceof LineChart) out.add((LineChart) v);
+        if (v instanceof ViewGroup) {
+            ViewGroup g = (ViewGroup) v;
+            for (int i = 0; i < g.getChildCount(); i++) charts(g.getChildAt(i), out);
+        }
     }
 
     private static View findList(View v) {
@@ -298,8 +436,38 @@ public class ScreensTest {
             }
         }
         ExerciseActivity d = start(ExerciseActivity.class, "exerciseId", best);
-        assertShows(d, "Personal Records", "Max Weight", "History & Trends", "VOLUME PER SESSION");
+        assertShows(d, "Personal Records", "Max Weight", "History & Trends",
+                "WEIGHT PER SESSION", "TIME AT EACH WEIGHT", "REPS PER SESSION", "VOLUME PER SESSION");
+        // one point for every session, on both lines
+        List<LineChart> charts = new ArrayList<LineChart>();
+        charts(d.getWindow().getDecorView(), charts);
+        assertEquals(2, charts.size());
+        int withKg = 0, withReps = 0;
+        for (Db.ExerciseSession s : db.getExerciseHistory(best)) {
+            if (s.maxKg != null) withKg++;
+            if (s.maxReps != null) withReps++;
+        }
+        assertEquals(withKg, charts.get(0).size());
+        assertEquals(withReps, charts.get(1).size());
+        assertTrue(charts.get(0).size() > 1);
         shot(d, "14-exercise-detail");
+        View card = (View) charts.get(0).getParent(), scroll = card;
+        int y = 0;
+        while (!(scroll instanceof android.widget.ScrollView)) {
+            y += scroll.getTop();
+            scroll = (View) scroll.getParent();
+        }
+        scroll.scrollTo(0, y);
+        shot(d, "14b-exercise-trends");
+
+        // a bodyweight exercise logged without weight has no weight line
+        long plank = db.getExercises("Side Plank", null).get(0).id;
+        long w = db.startWorkout("Core", firstGym().id, null);
+        db.addWorkoutSet(db.addWorkoutExercise(w, plank, 0), 1, null, 60.0);
+        db.finishWorkout(w);
+        ExerciseActivity p = start(ExerciseActivity.class, "exerciseId", plank);
+        assertShows(p, "REPS PER SESSION", "60 reps", "first session");
+        assertTrue(!texts(p).contains("WEIGHT PER SESSION"));
 
         ExerciseFormActivity f = start(ExerciseFormActivity.class, "exerciseId", 12L);
         assertShows(f, "Edit Exercise", "EXERCISE NAME", "MUSCLE GROUPS", "EQUIPMENT", "Update Exercise");

@@ -11,7 +11,9 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /** One gym: start a workout, see its history, or start from a saved workout. */
 public final class GymActivity extends Screen {
@@ -120,7 +122,7 @@ public final class GymActivity extends Screen {
             card.addView(Ui.icon(this, R.drawable.ic_play_circle, 26, Ui.SUCCESS));
             Ui.touch(card, 0.7f, new View.OnClickListener() {
                 public void onClick(View v) {
-                    startFromTemplate(t);
+                    start(t);
                 }
             });
             Ui.longPress(card, new Runnable() {
@@ -132,27 +134,39 @@ public final class GymActivity extends Screen {
         }
     }
 
-    /**
-     * Starts a workout with the template's exercises, each pre-filled with the
-     * note and sets from the last time this template was done.
-     */
-    private void startFromTemplate(Db.Template t) {
+    private void start(Db.Template t) {
         if (starting) return;   // a double tap used to start the workout twice
         starting = true;
+        long workoutId = startFromTemplate(db, t);
+        open(WorkoutActivity.class, "gymId", gymId, "workoutId", workoutId);
+    }
+
+    /**
+     * Starts a workout with the template's exercises, each pre-filled with the
+     * note and sets from the last time this template was done. Other saved
+     * workouts with the same exercise have no say in it, and an exercise that
+     * is in this one twice gets each slot's own sets back.
+     */
+    static long startFromTemplate(Db db, Db.Template t) {
         SQLiteDatabase sql = db.getWritableDatabase();
-        long workoutId;
         sql.beginTransaction();
         try {
-            workoutId = db.startWorkout(t.name, gymId, t.id);
-            for (Db.TemplateExercise ex : db.getTemplateExercises(t.id)) {
-                long weId = db.addWorkoutExercise(workoutId, ex.exerciseId, ex.sortOrder);
-                prefill(db, weId, db.getLastWorkoutDataForExercise(ex.exerciseId, t.id));
+            long workoutId = db.startWorkout(t.name, t.gymId, t.id);
+            Map<Long, Integer> slots = new HashMap<Long, Integer>();
+            List<Db.TemplateExercise> list = db.getTemplateExercises(t.id);
+            for (int i = 0; i < list.size(); i++) {
+                Db.TemplateExercise ex = list.get(i);
+                Integer slot = slots.get(ex.exerciseId);
+                if (slot == null) slot = 0;
+                slots.put(ex.exerciseId, slot + 1);
+                long weId = db.addWorkoutExercise(workoutId, ex.exerciseId, i);
+                prefill(db, weId, db.getLastWorkoutDataForExercise(ex.exerciseId, t.id, slot));
             }
             sql.setTransactionSuccessful();
+            return workoutId;
         } finally {
             sql.endTransaction();
         }
-        open(WorkoutActivity.class, "gymId", gymId, "workoutId", workoutId);
     }
 
     /** Copies last time's note and sets into a new workout exercise, or one empty set. */

@@ -37,13 +37,13 @@ public final class MainActivity extends Screen {
         Ui.pad(header, 20, 0, 20, 8);
         header.addView(Ui.text(this, "Your Gyms", 18, Ui.TEXT, 700), Ui.lp(0, Ui.WRAP, 1f));
         LinearLayout actions = Ui.gap(Ui.row(this), 8);
-        LinearLayout exercises = headerButton(R.drawable.ic_barbell_outline, "Exercises");
+        LinearLayout exercises = pill(R.drawable.ic_barbell_outline, "Exercises");
         Ui.touch(exercises, 0.2f, new View.OnClickListener() {
             public void onClick(View v) {
                 open(ExercisesActivity.class);
             }
         });
-        LinearLayout backup = headerButton(R.drawable.ic_swap_vertical_outline, null);
+        LinearLayout backup = pill(R.drawable.ic_swap_vertical_outline, null);
         backup.setContentDescription("Backup and restore");
         Ui.touch(backup, 0.2f, new View.OnClickListener() {
             public void onClick(View v) {
@@ -93,15 +93,6 @@ public final class MainActivity extends Screen {
         v.setBackground(Ui.box(this, color, r));
         v.setLayoutParams(Ui.lp(Ui.dp(this, w), Ui.dp(this, h)));
         return v;
-    }
-
-    private LinearLayout headerButton(int icon, String label) {
-        LinearLayout b = Ui.gap(Ui.row(this), 6);
-        b.setBackground(Ui.box(this, Ui.SURFACE, 20, Ui.BORDER));
-        Ui.pad(b, 14, 8, 14, 8);
-        b.addView(Ui.icon(this, icon, 18, Ui.PRIMARY));
-        if (label != null) b.addView(Ui.text(this, label, 13, Ui.PRIMARY, 600));
-        return b;
     }
 
     @Override
